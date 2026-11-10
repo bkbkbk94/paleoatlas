@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦣</text></svg>">
+<title>PaleoAtlas — paleolit i mezolit w czasie i przestrzeni</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header id="top">
+  <div class="brand">
+    <span class="logo">🦣</span>
+    <div>
+      <h1>PaleoAtlas</h1>
+      <p>stanowiska paleolitu i mezolitu · lądolód · biomy · 3,3 mln lat</p>
+    </div>
+  </div>
+  <nav>
+    <a href="#mapa" data-view="mapa" class="active">🗺️ Mapa</a>
+    <a href="#tom1" data-view="tom1">📖 Tom I: Świat łowców</a>
+    <a href="#slownik" data-view="slownik">📚 Słownik</a>
+    <a href="#globus" data-view="globus">🌍 Globus</a>
+    <a href="#dane" data-view="dane">ℹ️ O danych</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============================= WIDOK: MAPA ============================= -->
+  <section id="view-mapa" class="view active">
+    <div id="mapwrap">
+      <div id="map"></div>
+
+      <aside id="side" class="hidden">
+        <button id="side-close" title="Zamknij">✕</button>
+        <div id="side-content"><!-- karta stanowiska --></div>
+      </aside>
+
+      <div id="phasecard">
+        <div id="phase-name"></div><span id="phase-caret">▾</span>
+        <div id="phase-sub"></div>
+        <div id="phase-sea"></div>
+        <div id="phase-icesrc"></div>
+        <div id="phase-ice"></div>
+        <button id="paleo-view" class="on" title="Gdy włączone: zamiast współczesnego podkładu mapa pokazuje ocean i kontury lądów z wybranej epoki (wyschnięte szelfy, połączone lądy). Przerywana linia = duch dzisiejszej linii brzegowej dla orientacji.">🌎 Widok: lądy z epoki <b>WŁ.</b></button>
+        <button id="britice-var" class="on" title="Lądolód brytyjsko-irlandzki — rekonstrukcja empiryczna BRITICE-CHRONO (Clark i in. 2022, PANGAEA 945729): klikaj, by przełączać wariant niepewności datowań — MINIMUM / OPTIMUM / MAKSIMUM. Dotyczy tylko przekrojów 27–15 ka (stad. przedmaksymalny → pomorska); w pozostałych epokach Wyspy są bez lodu lub poza zakresem zbioru. Domyślnie OPTIMUM (rekonstrukcja preferowana autorów).">🧊 BIIS: <b>OPTIMUM</b></button>
+      </div>
+
+      <div id="legend" class="open">
+        <div id="legend-head">Szukaj · legenda <span id="legend-count" title="Liczba stanowisk widocznych na mapie w bieżącej epoce"></span> <button id="legend-toggle">–</button></div>
+        <div id="legend-body">
+          <div id="srch-box">
+            <input type="search" id="srch-q" placeholder="🔎 stanowisko, miejsce, kultura…" title="Szukaj po nazwie, miejscowości, gminie, regionie, kulturze, datowaniu lub ID (np. PM-030)">
+            <div id="srch-selects">
+              <select id="srch-kultura" title="Filtr: kultura"><option value="">kultura: wszystkie</option></select>
+              <select id="srch-typ" title="Filtr: typ stanowiska"><option value="">typ: wszystkie</option></select>
+              <select id="srch-hom" title="Filtr: hominina"><option value="">hominina: wszyscy</option></select>
+              <select id="srch-status" title="Filtr: status weryfikacji"><option value="">status: wszystkie</option></select>
+            </div>
+            <div id="srch-meta"></div>
+            <div id="srch-results"></div>
+          </div>
+          <div class="legend-symbols">
+            <span><i class="sym filar"></i> filar</span>
+            <span><i class="sym wezel"></i> węzeł</span>
+            <span><i class="sym tlo"></i> tło mapy</span>
+            <span><i class="sym sasiad"></i> sąsiad zagr.</span>
+            <span><i class="sym jask"></i> jaskinia</span>
+          </div>
+          <div id="legend-cultures"></div>
+        </div>
+      </div>
+
+      <div id="timeline">
+        <div id="tl-left">
+          <button id="tl-play" title="Animacja">▶</button>
+          <div id="tl-readout">
+            <b id="tl-year">95 tys. lat temu</b>
+            <span id="tl-phase">—</span>
+          </div>
+        </div>
+        <div id="tl-main">
+          <div id="tl-track-wrap">
+            <div id="tl-track"><!-- segmenty faz --></div>
+            <!-- kamienie milowe (♦) doklejane js/app.js -->
+          </div>
+          <input type="range" id="tl-slider" min="0" max="1900" value="0" step="1"
+                 aria-label="Oś czasu (lewo = przeszłość, prawo = dziś)">
+          <div id="tl-ruler"><span>← przeszłość · 3,3 mln lat temu</span><span class="mid">LGM</span><span class="now">dziś / przyszłość →</span></div>
+        </div>
+        <div id="tl-note" title="Oś jest nieliniowa: każda faza klimatyczna ma ten sam odcinek na osi, niezależnie od swej rzeczywistej długości. Dzięki temu paleolit ma własną, rozwiniętą skalę.">⧉ zmienna skala</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= WIDOK: TOM I ============================= -->
+  <section id="view-tom1" class="view">
+    <div class="doc-layout">
+      <aside id="tom1-toc"><h2>Tom I · Świat łowców</h2><ol id="tom1-list"></ol></aside>
+      <article id="tom1-article" class="doc"><div class="muted">Wybierz rozdział z listy.</div></article>
+    </div>
+  </section>
+
+  <!-- ============================= WIDOK: SŁOWNIK ============================= -->
+  <section id="view-slownik" class="view">
+    <div class="doc-layout">
+      <aside id="gloss-side">
+        <h2>Słownik pojęć</h2>
+        <input type="search" id="gloss-q" placeholder="Szukaj terminu lub w treści…">
+        <div id="gloss-cats"></div>
+      </aside>
+      <article id="gloss-list" class="doc"></article>
+    </div>
+  </section>
+
+  <!-- ============================= WIDOK: GLOBUS ============================= -->
+  <section id="view-globus" class="view">
+    <div id="globe-wrap">
+      <canvas id="globe-cv"></canvas>
+      <div id="globe-hud">
+        <div id="globe-epoch">—</div>
+        <div id="globe-tgls">
+          <button id="gt-biome" class="gtgl on"
+            title="Rastry 0,5°: Beyer2020 / Krapp2021 / Barreto2023+HG-lite — ta sama warstwa co na mapie płaskiej">🌿 biomy</button>
+          <button id="gt-pollen" class="gtgl on"
+            title="Kotwice pomiarowe BIOME 6000 v4.2 (0k/6k/18k) — DANE, rysowane tam, gdzie są pomiary">🌾 pyłek</button>
+        </div>
+        <div id="globe-hint">🌍 przeciągnij, by obracać · kółko/szczypnięcie = zoom ·
+          <b>tu mapa się nie kończy</b>: Chukotka i Alaska sąsiadują naturalnie, Beringia bez szwu.
+          Te same dane co płaska mapa (warstwy DANE / SCHEMAT patrz „O danych”).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= WIDOK: O DANYCH ============================= -->
+  <section id="view-dane" class="view">
+    <article class="doc narrow">
+      <h2>O projekcie i rygorystyka danych</h2>
+      <div id="about-content"></div>
+    </article>
+  </section>
+
+</main>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="js/data/sites.js"></script>
+<script src="js/data/meta.js"></script>
+<script src="js/data/paleo.js"></script>
+<script src="js/data/ice_dated.js"></script>     <!-- DATED-1 (PANGAEA): podmienia poligony eurazjatyckie -->
+<script src="js/data/ice_nadi.js"></script>      <!-- NADI-1 (Zenodo): podmienia poligony Ameryki Płn. 25–10,5 ka -->
+<script src="js/data/ice_patice.js"></script>    <!-- PATICE (Mendeley): podmienia poligony Patagonii 25–10,5 ka + "dziś", przekroje 30/35 ka dla ICE_QUAT -->
+<script src="js/data/ice_patlakes.js"></script>   <!-- PATICE-LAKES (Mendeley): 49 paleojezior przylodowcowych Patagonii 10–35 ka, warstwa wody nad lodem -->
+<script src="js/data/ice_ice6g.js"></script>     <!-- ICE-6G_C (VM5a, U. Toronto): podmienia pierścień Antarktydy 26–10,5 ka + "dziś"; Grenlandia 26–0 ka; Islandia deglacjacyjnie 15–10,5 ka -->
+<script src="js/data/ice_rgi_isl.js"></script>    <!-- RGI 7.0 (NSIDC, CC-BY): współczesne czapy lodowe Islandii (inwentarz ≈2000–2015 AD) — tylko do fazy „dziś” -->
+<script src="js/data/ice_britice.js"></script>   <!-- BRITICE-CHRONO (PANGAEA, CC-BY): empiryczny BIIS 27/21/18/15 ka, 3 warianty niepewności (MIN/OPT/MAX — przełącznik „🧊 BIIS”) — podmienia schematy Wysp; B-A bez lodu -->
+<script src="js/data/ice_glacmont.js"></script>  <!-- GLACIMONTIS (Zenodo, CC-BY): empiryczne lodowce górskie (lok. LGM 57–14 ka) — Himalaje, Tatry, Ałtaj, Wierchojańsk… fala 1 -->
+<script src="js/data/ice_quat.js"></script>      <!-- Batchelor 2019 (OSF): lądolody półkuli płn. ≥30 ka -->
+<script src="js/data/env.js"></script>          <!-- chronologia globalna: lądolod + poziom morza -->
+<script src="js/data/biome_meta.js"></script>   <!-- BIOME_META: 56 migawek biomów 0-3,3 mln (Beyer2020/Krapp2021/Barreto2023+HG-lite; tools/build_biomes.py) -->
+<script src="js/data/biome_pollen.js"></script> <!-- BIOME 6000 v4.2: kotwice pyłkowe 0k/6k/18k (DANE) -->
+<script src="js/data/shelves.js"></script>       <!-- ETOPO2v2 (NOAA): szelfy wg poziomu morza -->
+<script src="js/data/world_land.js"></script>
+<script src="js/data/glossary.js"></script>
+<script src="js/data/tom1.js"></script>
+<script src="vendor/d3/d3.min.js"></script>
+<script src="js/globe.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# PaleoAtlas — repozytorium
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+# scratch diagnostyczny i snapshoty ekranów (regenerowalne):
+shots/
