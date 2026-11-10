@@ -6,8 +6,31 @@
 (function () {
 'use strict';
 
+/* ============ STRAŻNIK DANYCH (odporność startu) ============
+   Ten plik zakłada, że 23 skrypty z js/data/ wczytały się PRZED nim. Do tej pory brak
+   jednego z nich kończył się wyjątkiem w połowie inicjalizacji: biała strona, pusta
+   konsola, zero informacji dla użytkownika. Teraz mówimy wprost, czego brakuje. */
+const REQUIRED_GLOBALS = ['SITES', 'META', 'PALEO', 'GLOSSARY', 'TOM1', 'ENV', 'SHELVES', 'BIOME_META'];
+const missingGlobals = REQUIRED_GLOBALS.filter(n => !window[n]);
+if (missingGlobals.length) {
+  const host = document.getElementById('map') || document.body;
+  host.innerHTML = '<div class="boot-error" role="alert">'
+    + '<h2>Nie udało się wczytać danych atlasu</h2>'
+    + '<p>Brakuje: <code>' + missingGlobals.join(', ') + '</code>.</p>'
+    + '<p>Odśwież stronę (Ctrl+R). Jeśli otwierasz plik prosto z dysku, użyj wersji '
+    + 'jednoplikowej <code>PaleoAtlas_OFFLINE.html</code> — zwykły <code>index.html</code> '
+    + 'wymaga serwera (np. <code>python3 -m http.server</code>).</p></div>';
+  console.error('PaleoAtlas: brak danych — ' + missingGlobals.join(', '));
+  return;
+}
+
 /* ------------------------------------------------- stałe i słowniczki UI */
 const CULT = {}; META.kultury.forEach(c => CULT[c.id] = c);
+/* Jedna zła/nowa wartość `kultura` w danych nie może wywalić całej mapy (pętla rysująca
+   punkty przerwie się w połowie) ani karty stanowiska („Cannot read properties of
+   undefined"). Nieznana kultura dostaje neutralny szary i własną nazwę jako etykietę. */
+const CULT_FALLBACK = { nazwa: 'kultura spoza słownika', kolor: '#8d8474' };
+const cultOf = k => CULT[k] || (k ? { nazwa: String(k), kolor: CULT_FALLBACK.kolor } : CULT_FALLBACK);
 
 /* Preferencja „mniej ruchu" (WCAG 2.3.3 / prefers-reduced-motion): wyłączamy animacje
    programowe (flyTo, płynny zoom, fade kafelków). Ruch inicjowany przez użytkownika
@@ -180,7 +203,8 @@ function envIcePolys(env) {
   return PALEO.ice_sets.now || [];
 }
 
-const state = { bp: 800000, filters: { q: '', kultura: null, typ: null, hom: null, status: null }, zoomWarnShown: false };
+/* `zoomWarnShown` usunięty: nigdzie nie był czytany ani zapisywany (martwe pole). */
+const state = { bp: 800000, filters: { q: '', kultura: null, typ: null, hom: null, status: null } };
 
 /* suwak → lata BP (tys → lata) */
 function sliderToBP(v) {
@@ -227,7 +251,7 @@ function matchesFilters(s) {
   if (f.hom && (s.homininy || []).indexOf(f.hom) < 0) return false;
   if (f.q) {
     const q = f.q.toLowerCase();
-    const hay = [s.id, s.nazwa, s.kraj, s.kultura_raw, CULT[s.kultura].nazwa, s.blok_nazwa,
+    const hay = [s.id, s.nazwa, s.kraj, s.kultura_raw, cultOf(s.kultura).nazwa, s.blok_nazwa,
       s.datowanie_tekst, s.woj, s.powiat, s.gmina, s.region, (s.epoki || []).join(' '),
       STATUS_PL[s.status], TYP_PL[s.typ]].filter(Boolean).join(' ').toLowerCase();
     if (hay.indexOf(q) < 0) return false;
@@ -503,12 +527,16 @@ function biomeSrcTag(e) {
   if (e.src === 'krapp') return 'MODEL opublikowany — Krapp i in. 2021 (Sci. Data 8:228; emulator HadCM3)';
   return 'MODEL portalu — klimat Barreto i in. 2023 (GEB 32:1034) + klasyfikator HG-lite v0.6 (walidacja: zgodność grup z Krapp2021 @0 ka = 68%)';
 }
+/* Paleta kolor → klasa. Klucz jest LICZBĄ (r<<16|g<<8|b), nie sklejonym stringiem:
+   wcześniej pętla po 720×360 px tworzyła 259 200 stringów „r,g,b” na każdy raster
+   (profil CPU: ~15% czasu kroku osi + 8% na odśmiecanie). Map z kluczem liczbowym
+   robi to samo bez alokacji. */
 function biomePal2id() {
   if (!BIOME.pal2id) {
-    BIOME.pal2id = {};
+    BIOME.pal2id = new Map();
     for (const [k, hex] of Object.entries(BIOME.meta.palette)) {
       const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-      BIOME.pal2id[r + ',' + g + ',' + b] = +k;
+      BIOME.pal2id.set((r << 16) | (g << 8) | b, +k);
     }
   }
   return BIOME.pal2id;
@@ -526,8 +554,8 @@ function loadBiomeRaster(e) {
       const p2i = biomePal2id();
       const cla = new Uint8Array(720 * 360);
       const hist = {};
-      for (let i = 0; i < 720 * 360; i++) {
-        const k = p2i[d[i * 4] + ',' + d[i * 4 + 1] + ',' + d[i * 4 + 2]];
+      for (let i = 0, o = 0; i < cla.length; i++, o += 4) {
+        const k = p2i.get((d[o] << 16) | (d[o + 1] << 8) | d[o + 2]);
         cla[i] = (k === undefined) ? 0 : k;
         if (k > 0) hist[k] = (hist[k] || 0) + 1;
       }
@@ -586,7 +614,7 @@ function pollenMarkersFor(key) {     // cache: markery budowane RAZ na klucz (0k
       arr.push(L.circleMarker([lat, lon], {
         pane: 'pollenPane', renderer: R, radius: 3.2, weight: 0.8,
         color: '#1c1c1c', fillColor: BIOME.meta.palette[k] || '#555', fillOpacity: 0.95
-      }).bindTooltip('<b>🌾 ' + String(name).trim() + '</b><br>' + (BIOME.meta.names[k] || ('klasa ' + k)) +
+      }).bindTooltip('<b>🌾 ' + esc(String(name).trim()) + '</b><br>' + (BIOME.meta.names[k] || ('klasa ' + k)) +
         ' — <b>DANE pyłkowe</b> (BIOME 6000 v4.2)<br><i>' + dset + ' · ' + age + '</i>', { sticky: true }));
     }
     BIOME.pg[key] = arr;
@@ -619,6 +647,10 @@ function renderBiomeLegend() {
   }
   if (rest > 0) h += '<div class="bl-rest">+ ' + rest + ' klas rzadszych</div>';
   if (BIOME.pollenKey) h += '<div class="bl-rest">🌾 kotwice: BIOME 6000 <b>' + BIOME.pollenKey + '</b> (' + window.BIOME_POLLEN[BIOME.pollenKey].length + ' stanowisk, DANE)</div>';
+  /* zapis innerHTML to najdroższa część (wymusza przeliczanie stylów). Ten sam HTML
+     wstawiamy raz — przy przeciąganiu osi w obrębie jednej migawki nic się nie zmienia. */
+  if (h === BIOME.legendHTML) return;
+  BIOME.legendHTML = h;
   BIOME.legend.getContainer().innerHTML = h;
 }
 function hideBiomeTip() { if (BIOME.tip) BIOME.tip.style.display = 'none'; }
@@ -639,11 +671,15 @@ function initBiomeUI() {
     return d;
   };
   BIOME.legend.addTo(map);
-  let raf = 0;
+  let raf = 0, lastEv = null;
   map.on('mousemove', ev => {
+    /* Trzymamy NAJNOWSZE zdarzenie: przy `if (raf) return` w klatce zostawała pozycja
+       sprzed ~16 ms, więc dymek „gonił" kursor o jedną klatkę. */
+    lastEv = ev;
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
+      ev = lastEv;
       if (!map.hasLayer(group.biome) || !group.biome.getLayers().length || !BIOME.cache[BIOME.curFile]) { hideBiomeTip(); return; }
       const k = biomeClassAt(ev.latlng);
       if (k == null) { hideBiomeTip(); return; }
@@ -658,7 +694,24 @@ function initBiomeUI() {
     });
   });
   map.on('mouseout', hideBiomeTip);
-  map.on('layeradd layerremove', () => renderBiomeLegend());
+  /* UWAGA: wcześniej było `map.on('layeradd layerremove')`. Mapa odpala to zdarzenie
+     dla KAŻDEJ dodanej warstwy, więc jeden krok osi (kilkaset punktów + poligony)
+     przebudowywał legendę biomów kilkadziesiąt razy (pomiar: 29 mutacji DOM na krok,
+     profil: ~6% czasu kroku). Słuchamy tylko grup, które legendę naprawdę zmieniają,
+     i sklejamy serię zdarzeń w jedną klatkę. */
+  let legendRaf = 0;
+  const legendSoon = () => {
+    if (legendRaf) return;
+    legendRaf = requestAnimationFrame(() => { legendRaf = 0; renderBiomeLegend(); });
+  };
+  group.biome.on('layeradd layerremove', legendSoon);
+  group.pollen.on('layeradd layerremove', legendSoon);
+  /* Sama GRUPA też musi być obserwowana: zdjęcie warstwy „Biomy" z mapy nie odpala
+     zdarzenia na grupie, tylko na mapie — a wtedy legenda musi zniknąć. Filtr po
+     tożsamości obiektu jest O(1), więc zdarzenia od setek markerów nic nie kosztują. */
+  map.on('layeradd layerremove', ev => {
+    if (ev.layer === group.biome || ev.layer === group.pollen || ev.layer === BIOME.overlay) legendSoon();
+  });
 }
 function renderBiome() {
   if (!BIOME.meta) return;
@@ -668,7 +721,9 @@ function renderBiome() {
   const changed = BIOME.curFile !== e.file;
   if (changed || !BIOME.overlay) {
     if (BIOME.overlay) group.biome.removeLayer(BIOME.overlay);
-    BIOME.overlay = L.imageOverlay(url, [[-90, -180], [90, 180]], { pane: 'biomePane', interactive: false, opacity: 0.95 });
+    BIOME.overlay = L.imageOverlay(url, [[-90, -180], [90, 180]], {
+      pane: 'biomePane', interactive: false, opacity: 0.95, alt: '' /* dekoracyjny — treść opisuje legenda */
+    });
     group.biome.addLayer(BIOME.overlay);
     BIOME.curFile = e.file;
     loadBiomeRaster(e);
@@ -793,7 +848,7 @@ function renderTimeLayers() {
   group.rdzen.clearLayers(); group.sasiedzi.clearLayers();
   vis.sasiedzi.forEach(s => {
     group.sasiedzi.addLayer(L.circleMarker([s.lat, s.lon], {
-      pane: 'nbrPane', radius: 5.5, color: CULT[s.kultura].kolor, weight: 2,
+      pane: 'nbrPane', radius: 5.5, color: cultOf(s.kultura).kolor, weight: 2,
       fillColor: '#14100a', fillOpacity: .15
     }).on('click', () => openSite(s))
       .bindTooltip(tipText(s)));
@@ -803,7 +858,7 @@ function renderTimeLayers() {
     group.rdzen.addLayer(L.circleMarker([s.lat, s.lon], {
       pane: 'sitesPane', radius: ROLA_SZ(s), color: '#fff', weight: jask ? 1.6 : 2,
       dashArray: jask ? '2,2' : null,
-      fillColor: CULT[s.kultura].kolor,
+      fillColor: cultOf(s.kultura).kolor,
       fillOpacity: s.status === 'KWESTIONOWANE' ? .35 : .9
     }).on('click', () => openSite(s))
       .bindTooltip(tipText(s)));
@@ -821,9 +876,9 @@ function renderTimeLayers() {
       const hull = convexHull(byKult[k]);
       if (!hull) return;
       group.hulls.addLayer(L.polygon(hull.map(pt => [pt[1], pt[0]]), {
-        pane: 'hullPane', color: CULT[k].kolor, weight: 2, dashArray: '7 6',
-        fillColor: CULT[k].kolor, fillOpacity: .15
-      }).bindTooltip('<b>Zasięg: ' + CULT[k].nazwa + '</b><br>' + byKult[k].length +
+        pane: 'hullPane', color: cultOf(k).kolor, weight: 2, dashArray: '7 6',
+        fillColor: cultOf(k).kolor, fillOpacity: .15
+      }).bindTooltip('<b>Zasięg: ' + cultOf(k).nazwa + '</b><br>' + byKult[k].length +
         ' stanowisk w tym czasie.<br><i>Obwiednia wypukła — zasięg ORIENTACYJNY, nie rzeczywista granica.</i>',
         { sticky: true }));
     });
@@ -835,7 +890,7 @@ function renderTimeLayers() {
 }
 
 function tipText(s) {
-  const k = CULT[s.kultura];
+  const k = cultOf(s.kultura);
   return '<b>' + esc(s.nazwa.length > 95 ? s.nazwa.slice(0, 95) + '…' : s.nazwa) + '</b><br>' +
     '<span style="color:' + k.kolor + '">●</span> ' + esc(k.nazwa) +
     (s.kraj && s.kraj !== 'Polska' ? ' · ' + esc(s.kraj) : '') + '<br>' +
@@ -894,7 +949,7 @@ function updateLegend(vis) {
   Object.keys(counts).sort((a, b) => counts[b] - counts[a]).forEach(k => {
     const row = document.createElement('div');
     row.className = 'lc' + (state.filters.kultura === k ? ' active' : '');
-    row.innerHTML = '<i style="background:' + CULT[k].kolor + '"></i><span>' + esc(CULT[k].nazwa) + '</span><b>' + counts[k] + '</b>';
+    row.innerHTML = '<i style="background:' + cultOf(k).kolor + '"></i><span>' + esc(cultOf(k).nazwa) + '</span><b>' + counts[k] + '</b>';
     row.title = 'Klik — pokaż tylko tę kulturę (ponownie: wyłącz filtr)';
     /* a11y: wiersz legendy jest przyciskiem filtru — musi dać się zaznaczyć Tabem i kliknąć Enterem/Spacją */
     row.setAttribute('role', 'button');
@@ -959,7 +1014,7 @@ function renderSearch() {
     });
     d.title = (ok ? 'Widoczne w bieżącej epoce' : 'Spoza bieżącej epoki — klik przeniesie oś czasu') +
       ' · ' + (s.kolekcja === 'rdzen' ? s.id : s.id + ' · ' + s.kraj);
-    d.innerHTML = '<i style="background:' + CULT[s.kultura].kolor + '"></i>' +
+    d.innerHTML = '<i style="background:' + cultOf(s.kultura).kolor + '"></i>' +
       '<span class="nm">' + esc(s.nazwa.length > 90 ? s.nazwa.slice(0, 90) + '…' : s.nazwa) + '</span>' +
       '<span class="tm">' + ktys(s.od) + '</span>';
     d.onclick = () => {
@@ -992,12 +1047,20 @@ srchEls.q.addEventListener('input', () => { state.filters.q = srchEls.q.value.tr
 });
 
 /* ------------------------------------------------- karta stanowiska */
-function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+/* Escapowanie do HTML-a, w tym do WARTOŚCI ATRYBUTÓW (data-*, title, style).
+   Wcześniej zamieniano tylko & < > — a wartość z cudzysłowem rozjeżdżała atrybut,
+   np. data-z="…" w kartach słownika czy data-pid w powiązaniach stanowisk.
+   Teraz escapujemy też " i ' (w treści tekstowej renderują się identycznie). */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function openSite(s) {
   const side = document.getElementById('side');
   side.classList.remove('hidden');
-  const k = CULT[s.kultura];
+  const k = cultOf(s.kultura);
   const stCls = s.status === 'POTWIERDZONE' ? 'ok' : (s.status === 'CZESCIOWO' ? 'warn' : 'err');
   let h = '<h2>' + esc(s.nazwa) + '</h2>';
   h += '<span class="cult-tag" style="background:' + k.kolor + '">' + esc(k.nazwa) + '</span>';
@@ -1232,6 +1295,13 @@ function renderGloss() {
 document.getElementById('gloss-q').addEventListener('input', e => { glossState.q = e.target.value; renderGloss(); });
 
 /* =========================================================================== O DANYCH */
+/* Liczby w tym tekście MUSZĄ pochodzić z danych, nie z ręcznej korekty: poprzednio
+   „26 kultur / 140 wariantów" i „146 zapisów na 26 kultur" przeczyły sobie i danym
+   (META.kultury = 25). Teraz każda liczba jest wyliczana przy starcie. */
+const RAW_KULTURY = new Set(SITES.rdzen.concat(SITES.sasiedzi).map(s => s.kultura_raw).filter(Boolean)).size;
+const FAZY_GLEBOKIE = FAZY.filter(f => f.glebokie).length;
+const FAZY_KLIMAT = FAZY.length - FAZY_GLEBOKIE;
+const MIGAWKI_BIOMOW = ((window.BIOME_META || {}).epochs || []).length;
 document.getElementById('about-content').innerHTML = `
 <p>Portal powstał na danych poddanych rygorystycznej weryfikacji naukowej: <b>${SITES.rdzen.filter(s => !isDupe(s)).length} stanowisk z Polski</b>
 (warstwy A/B, statusy weryfikacji, rozdzielenie „co wiemy” / „czego nie wiemy”, źródła pierwotne)
@@ -1240,29 +1310,29 @@ Trzy rekordy oznaczone w bazie jako duplikaty (PM-094→PM-030, PM-099→PM-142,
 ale nie rysują się na mapie i nie liczą w statystykach.</p>
 
 <h3 class="about-h">Oś czasu</h3>
-<p>Oś jest <b>nieliniowa</b>: każda z <b>19 faz</b> — 17 faz klimatycznych (z pliku <code>zlodowacenia_biomy.csv</code>) oraz
-2 fazy głębokie („Pierwsze narzędzia kamienne — Lomekwi i Oldowan” 3,3 mln–1,8 mln; „Ekspansja Homo —
+<p>Oś jest <b>nieliniowa</b>: każda z <b>${FAZY.length} faz</b> — ${FAZY_KLIMAT} faz klimatycznych (z pliku <code>zlodowacenia_biomy.csv</code>) oraz
+${FAZY_GLEBOKIE} fazy głębokie („Pierwsze narzędzia kamienne — Lomekwi i Oldowan” 3,3 mln–1,8 mln; „Ekspansja Homo —
 wyjście z Afryki i Acheul” 1,8 mln–800 tys.) — zajmuje ten sam odcinek suwaka. Dzięki temu plejstoceńska
 przeszłość — np. 200 tys. lat paleolitu środkowego — ma tak samo szeroką skalę jak 9 tys. lat paleolitu
 schyłkowego. Suwak kierowany w prawo: <b>lewo = przeszłość (3,3 mln lat temu), prawo = dziś</b>.
-Pod osią 9 diamentowych znaczników ♦ to kamienie milowe homininów (Lomekwi, rodzaj Homo, Oldowan,
+Pod osią ${(META.milestones || []).length} diamentowych znaczników ♦ to kamienie milowe homininów (Lomekwi, rodzaj Homo, Oldowan,
 Shangchen, Dmanisi, Acheul, Sima del Elefante, Orce, Happisburgh) — kliknięcie przesuwa suwak do epoki.</p>
 
 <h3 class="about-h">Globalna chronologia środowiskowa (lądolód + poziom morza)</h3>
 <p>Lądolód i dawne linie brzegowe <b>nie są sztywno przypięte do faz osi</b> — płyną osobną, globalną skalą:
-<b>54 przekroje</b> od 3,15 mln lat do dziś. Przekroje MIS 16–24 mają <b>okna pięter</b> (granice stadiałów
+<b>${ENV_TICKS.length} przekroje</b> od 3,15 mln lat do dziś. Przekroje MIS 16–24 mają <b>okna pięter</b> (granice stadiałów
 wg Railsback i in. 2015 / LR04 — np. 713 tys. lat ląduje w stadiałowym MIS 18, nie w najbliższym interglacjale);
 poza nimi portal wybiera <b>najbliższy przekrój</b> dla bieżącego roku —
 karta fazy pokazuje jego etykietę („🛰 Środowisko (chronologia globalna): …”), a jeśli przekrój jest
 oddalony o ≥5 tys. lat, dopisuje jawnie „najbliższy przekrój: Δ X tys. l.”. Poziom morza liczony jest
-z uproszczonej krzywej eustatycznej (102 punkty, interpolacja liniowa): Waelbroeck i in. 2002;
+z uproszczonej krzywej eustatycznej (${ENV_SEA.length} punkty, interpolacja liniowa): Waelbroeck i in. 2002;
 Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM (do +20 m w pliocenie).</p>
 
 <h3 class="about-h">Warstwy mapy</h3>
 <table>
 <tr><th>Warstwa</th><th>Źródło / status</th></tr>
 <tr><td>Stanowiska</td><td>dane portalowe, datowanie znormalizowane (cal BP)</td></tr>
-<tr><td>Kolory kultur</td><td>taksonomia 26 kultur wyprowadzona z pola <code>okres_kultura</code> (140 wariantów zapisu)</td></tr>
+<tr><td>Kolory kultur</td><td>taksonomia ${META.kultury.length} kultur wyprowadzona z pola <code>okres_kultura</code> (${RAW_KULTURY} wariantów zapisu obecnych w danych)</td></tr>
 <tr><td>Zasięgi kultur</td><td>tymczasowo wyłączone (obwiednie wypukłe bywały mylące) — wrócą w przemyślanej formie</td></tr>
 <tr><td>Lądolód — Polska</td><td>dokładne linie z <code>zlodowacenia_biomy.csv</code> (wszykane w poligony globalne — verbatim)</td></tr>
 <tr><td>Lądolód — Eurazja 30–8 tys. BP</td><td><b>DANE</b>: DATED-1 (Hughes i in. 2016, <i>Boreas</i>; PANGAEA 848117), linia „most credible” co 1 tys. lat</td></tr>
@@ -1285,7 +1355,7 @@ Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM (do +20 m w plioc
 <tr><td>Biomy — głęboki plejstocen (121–799 tys. BP)</td><td><b>MODEL opublikowany</b>: Krapp, Beyer, Edmundson, Valdes &amp; Manica 2021 (<i>Scientific Data</i> 8:228, doi:10.1038/s41597-021-01009-3) — statystyczny emulator HadCM3 (regresja na 72 symulacjach × wymuszenia CO₂/orbitalne/lądolód, bias-corrected, co 1 tys. l., 0,5°); ta sama taksonomia BIOME4, klasa 28 = lądolód emulatora, dogrznany zasięgiem przekroju Q19 epoki (spójność z warstwą lodu portalu)</td></tr>
 <tr><td>Biomy — przełom śr.-plejst. → pliocen (0,81–3,3 mln BP)</td><td><b>MODEL portalu</b>: klimat PALEO-PGEM-Series (Barreto, Holden, Edwards &amp; Rangel 2023, <i>Global Ecology and Biogeography</i> 32:1034–1045, doi:10.1111/geb.13683; dane figshare 10.6084/m9.figshare.20379663, CC-BY 4.0 — bio1/5/6/12/15/16/17, 1°, co 1 tys. l. do 5 mln) + <b>klasyfikator regułowy HG-lite v0.6</b> (sam bioclim — <b>bez paleogeografii i GDD pełnego</b>; konstrukcja na wzór progów BIOME4). <b>Walidacja</b> (tools/check_biomes.py → biome_report.json): zgodność GRUP biomowych z modelem Krapp2021 na 0 ka = <b>68% komórek lądowych globalnie</b> (Amazonia 99%, Polska 97%, Kongo 84%, Syberia 84%, Sahara 77%, Indie 73%; słabiej: umiark. mokra Patagonia 17%, Tybet 62% — komórki 0,5° uśredniają góry). Warstwa sygnuje to etykietą „MODEL portalu” w tooltipie i legendzie</td></tr>
 <tr><td>Kotwice pyłkowe biomów (🌾 0k / 6k / 18k)</td><td><b>DANE pomiarowe</b>: BIOME 6000 v4.2 (Prentice i in. 2000; Harrison i in. 2001; Bigelow i in. 2003; Pickett i in. 2004 + syntezy regionalne: Marchant i in. — Ameryka Płd.; Ni i in. — Chiny; Sutra i in. — Indie; SEAPAC — Azja Płd.-Wsch.; PMIP2/BRIDGE) — odpowiednio 9 948 / 1 794 / 318 stanowisk z biomiem zrekonstruowanym z pyłku, rysowane punktowo <b>dokładnie tam, gdzie są pomiary</b> (bez mieszania DANYCH z MODELEM); widoczne przy migawkach 0–3 / 4–8 / 17–25 ka; „18k” = lata radiowęglowe (~21–22 ka kal.)</td></tr>
-<tr><td>Wizualizacja biomów</td><td>rastery PNG 0,5° (56 migawek, paleta BIOME4 — ta sama klasyfikacja we wszystkich trzech źródłach); wybór migawki = najbliższa na osi; klasa 28 (lądolód) domyślnie przykryta białym poligonem warstwy lodu; na hover: nazwa biomy + źródło epoki; legenda = klasy obecne w bieżącej migawce; <b>oceany nie sa klasyfikowane</b> (biomy lądowe); te same rastry rysowane tez na <b>globie</b> (przelacznik „🌿 biomy” w HUD — probkowanie odwroconym rzutem, klatka koncowa = pelna rozdzielczosc danych)</td></tr>
+<tr><td>Wizualizacja biomów</td><td>rastery PNG 0,5° (${MIGAWKI_BIOMOW} migawek, paleta BIOME4 — ta sama klasyfikacja we wszystkich trzech źródłach); wybór migawki = najbliższa na osi; klasa 28 (lądolód) domyślnie przykryta białym poligonem warstwy lodu; na hover: nazwa biomy + źródło epoki; legenda = klasy obecne w bieżącej migawce; <b>oceany nie sa klasyfikowane</b> (biomy lądowe); te same rastry rysowane tez na <b>globie</b> (przelacznik „🌿 biomy” w HUD — probkowanie odwroconym rzutem, klatka koncowa = pelna rozdzielczosc danych)</td></tr>
 <tr><td>Lądolód — MIS 18 i wczesny plejstocen (MIS 36/52–54/62/82)</td><td><b>SCHEMAT-analog</b>: kształt pożyczony z najbliższego przekroju (MIS 20–24 / wczesny Matuyama / późny Gauss), rząd wielkości wg LR04; etykieta i tooltip ⚠ jawnie to zaznaczają</td></tr>
 <tr><td>Poziom morza</td><td>uproszczona krzywa eustatyczna portalu (102 pkt): Waelbroeck i in. 2002; Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM; steruje progiem szelfu</td></tr>
 <tr><td>Dawne lądy / wyschnięty szelf</td><td><b>DANE</b>: batymetria ETOPO2v2 (NOAA/NCEI, 2′) + próg z globalnej krzywej (−5…−125 m); baseny zamknięte (Czarne, Kaspijskie): przybliżenie 1. rzędu; paleojeziora przylodowcowe Patagonii: osobna warstwa DANYCH PATICE (wiersz wyżej)</td></tr>
@@ -1305,7 +1375,7 @@ Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM (do +20 m w plioc
 <li>rozszerzenie na cały świat — model danych jest na to gotowy (plik sąsiadów ma ten sam schemat),</li>
 <li>wersja EN; eksport danych widoku; dalszy rozwój wariantu mobilnego.</li>
 </ul>
-<p>Zrealizowane: ✅ osobna globalna chronologia lądolodu i poziomu morza (54 przekroje + okna pięter MIS 16–24, 3,15 mln–dziś),
+<p>Zrealizowane: ✅ osobna globalna chronologia lądolodu i poziomu morza (${ENV_TICKS.length} przekroje + okna pięter MIS 16–24, 3,15 mln–dziś),
 ✅ pełny import Batchelor i in. 2019 (18 przekrojów półkuli płn., OSF osf.io/7jen3) z liniami marginesu PL wsykanymi verbatim,
 ✅ oś czasu od 3,3 mln lat (pierwsze narzędzia kamienne) z 9 kamieniami milowymi homininów,
 ✅ DATED-1 dla Eurazji 30–8 tys. BP z liniami marginesu z danych portalu,
@@ -1315,7 +1385,7 @@ Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM (do +20 m w plioc
 ✅ widok kulisty „🌍 Globus” (d3-geo) — bez szwu na datowniku; porządki azjatyckie (Tajmyr/NE Azja wg Batchelora),
 ✅ paleolinie brzegowe z batymetrii ETOPO2v2 (próg z globalnej krzywej),
 ✅ wyszukiwarka stanowisk z filtrami (kultura · typ · hominina · status), ✅ tryb mobilny (zwijane panele, dolna szuflada karty),
-✅ deduplikacja rekordów, ✅ mapowanie 146 zapisów <code>okres_kultura</code> na 26 kultur (w tym korekta hamburskiej i epigraweckiej).</p>
+✅ deduplikacja rekordów, ✅ mapowanie ${RAW_KULTURY} zapisów <code>okres_kultura</code> na ${META.kultury.length} kultur (w tym korekta hamburskiej i epigraweckiej).</p>
 <p class="muted">Zbudowano automatycznie z CSV narzędziem <code>tools/build_data.py</code> — aktualizacja danych = nowe CSV + uruchomienie skryptu.</p>`;
 
 /* =========================================================================== START */

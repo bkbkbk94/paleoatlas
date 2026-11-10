@@ -64,6 +64,17 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* ---------------- mapa + nakładki ---------------- */
 #mapwrap { position: relative; flex: 1; min-height: 0; }
+
+/* Ekran awaryjny „brak danych" (strażnik na początku js/app.js).
+   Ma wyglądać jak część portalu, nie jak surowy błąd serwera. */
+.boot-error {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  justify-content: center; align-items: center; gap: .5rem; padding: 2rem 1.5rem;
+  text-align: center; background: #12100d; color: #e8e0cf;
+}
+.boot-error h2 { margin: 0; font-size: 1.05rem; letter-spacing: .01em; }
+.boot-error p { margin: 0; max-width: 40rem; font-size: .88rem; line-height: 1.6; color: #c9c0ae; }
+.boot-error code { background: #241f18; padding: .06em .35em; border-radius: 3px; font-size: .95em; }
 #map { position: absolute; inset: 0 0 158px 0; background: #0b0906; }
 
 .leaflet-container { background: #0b0906; }

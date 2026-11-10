@@ -55,6 +55,16 @@ assert n_icon == 1, f'oczekiwano 1 ikony apple-touch, mam {n_icon}'
 html, n_man = re.subn(r'\n?<link rel="manifest"[^>]*>', '', html)
 assert n_man == 1, 'brak linku manifestu do usunięcia'
 html = html.replace('<link rel="image_src" href="assets/og-image.png">', '')
+# favicon: od 2026-11 jest to plik marki (assets/icon.svg), a nie data-URI emoji —
+# w paczce jednoplikowej musi być wbudowany, inaczej przeglądarka szuka go na dysku
+svg_uri = 'data:image/svg+xml;base64,' + base64.b64encode(
+    (ROOT / 'assets/icon.svg').read_bytes()).decode()
+html, n_fav_svg = re.subn(r'<link rel="icon" href="assets/icon\.svg" type="image/svg\+xml">',
+                          f'<link rel="icon" href="{svg_uri}" type="image/svg+xml">', html)
+assert n_fav_svg == 1, f'oczekiwano 1 favicony SVG, mam {n_fav_svg}'
+html, n_fav_png = re.subn(r'<link rel="icon" sizes="192x192" href="assets/icon-192\.png">',
+                          f'<link rel="icon" sizes="192x192" href="{b64(ROOT / "assets/icon-192.png")}">', html)
+assert n_fav_png == 1, f'oczekiwano 1 favicony PNG, mam {n_fav_png}'
 
 # ---------------------------------------------------------------- 2. rastry biomów → BIOME_PNG
 pngs = sorted((ROOT / 'js/data/biome').glob('*.png'))

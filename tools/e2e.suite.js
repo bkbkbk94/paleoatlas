@@ -603,6 +603,96 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       JSON.stringify(rmState) + ' · błędy: ' + rmErr.length);
     await rm.close();
 
+    /* 10.15 legenda biomów: brak zbędnych przebudów (regresja wydajności z audytu 2026-11)
+       Wcześniej `map.on('layeradd layerremove')` odpalał przebudowę legendy dla KAŻDEJ
+       warstwy dodanej na mapie — jeden krok osi dawał 29 mutacji DOM. Teraz: 0, gdy treść
+       się nie zmienia. Test pilnuje, żeby nikt nie wrócił do nasłuchu na całej mapie. */
+    const legendChurn = await page.evaluate(async () => {
+      const PA = window.__PA;
+      const el = document.querySelector('.biome-legend');
+      if (!el) return { ok: false, reason: 'brak legendy biomów' };
+      const v = Math.round(PA.bpToSlider(95000));
+      PA.setSlider(v);
+      await new Promise(r => setTimeout(r, 250));       // ustabilizuj stan
+      let muts = 0;
+      const mo = new MutationObserver(list => { muts += list.length; });
+      mo.observe(el, { childList: true, subtree: true, characterData: true, attributes: true });
+      PA.setSlider(v);                                  // ten sam stan → nic nie powinno drgnąć
+      PA.setSlider(v);
+      await new Promise(r => setTimeout(r, 250));
+      mo.disconnect();
+      return { ok: true, muts };
+    });
+    check('10.15 legenda biomów nie przebudowuje się bez zmiany treści (0 mutacji DOM, nie 29)',
+      legendChurn.ok && legendChurn.muts === 0, JSON.stringify(legendChurn));
+
+    /* 10.16 odporność startu: brak pliku danych → czytelny komunikat, nie biała strona */
+    const brk = await browser.newPage();
+    const brkErr = [];
+    brk.on('pageerror', e => brkErr.push(e.message));
+    await brk.setRequestInterception(true);
+    brk.on('request', req => (req.url().includes('js/data/sites.js') && !req.url().startsWith('file:'))
+      ? req.abort() : req.continue());
+    await brk.setViewport({ width: 1280, height: 860 });
+    await brk.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+    await sleep(1200);
+    const brkState = await brk.evaluate(() => {
+      const el = document.querySelector('.boot-error');
+      return {
+        present: !!el,
+        role: el ? el.getAttribute('role') : null,
+        text: el ? el.textContent.replace(/\s+/g, ' ').trim().slice(0, 120) : document.body.textContent.trim().slice(0, 80),
+        mapEmpty: (document.getElementById('map') || {}).children.length === 0
+      };
+    });
+    check('10.16 brak pliku danych → komunikat „Nie udało się wczytać danych" (nie biała strona)',
+      brkState.present && brkState.role === 'alert' && /Nie udało się wczytać danych atlasu/.test(brkState.text)
+      && /SITES/.test(brkState.text),
+      JSON.stringify(brkState));
+    await brk.close();
+
+    /* 10.17 cudzysłowy w nazwach: dane mają stanowiska typu „laska magiczna" — karta musi
+       je pokazać dosłownie, a atrybuty (data-*) nie mogą się rozjechać. */
+    const quoteCase = await page.evaluate(() => {
+      const PA = window.__PA;
+      PA.openSiteById('PM-038');
+      const side = document.getElementById('side-content');
+      const h2 = side.querySelector('h2');
+      const chips = Array.from(side.querySelectorAll('.chip[data-pid]'));
+      const chipOk = chips.every(c => c.getAttribute('data-pid') === c.textContent.trim());
+      return {
+        title: h2 ? h2.textContent.trim() : null,
+        hasQuote: h2 ? h2.textContent.includes('"laska magiczna"') : false,
+        h2count: side.querySelectorAll('h2').length,
+        chipOk,
+        chips: chips.length
+      };
+    });
+    check('10.17 cudzysłowy w nazwie stanowiska renderują się dosłownie, atrybuty data-* nienaruszone',
+      quoteCase.hasQuote && quoteCase.h2count === 1 && quoteCase.chipOk === true,
+      JSON.stringify(quoteCase));
+
+    /* 10.18 „O danych": liczby zgodne z danymi (wcześniej tekst mówił „26 kultur / 140/146
+       wariantów", a META.kultury ma 25). Test blokuje powrót ręcznie wpisywanych liczb. */
+    const aboutNums = await page.evaluate(() => {
+      const PA = window.__PA;
+      const txt = (document.getElementById('about-content') || {}).textContent || '';
+      const m = window.META;
+      const raw = new Set(window.SITES.rdzen.concat(window.SITES.sasiedzi).map(s => s.kultura_raw).filter(Boolean)).size;
+      return {
+        txt, kultur: m.kultury.length, raw,
+        maKultur: txt.includes(m.kultury.length + ' kultur'),
+        maRaw: txt.includes(raw + ' wariantów zapisu'),
+        stare: /26 kultur|140 wariantów|146 zapisów/.test(txt),
+        przekroje: txt.includes((window.ENV.ticks || []).length + ' przekroje'),
+        fazy: txt.includes(m.fazy.length + ' faz')
+      };
+    });
+    check('10.18 „O danych" liczby (kultury, warianty zapisu, przekroje, fazy) pochodzą z danych',
+      aboutNums.maKultur && aboutNums.maRaw && !aboutNums.stare && aboutNums.przekroje && aboutNums.fazy,
+      JSON.stringify({ kultur: aboutNums.kultur, raw: aboutNums.raw, stare: aboutNums.stare,
+        przekroje: aboutNums.przekroje, fazy: aboutNums.fazy }));
+
     await shot('10_final');
   } catch (e) {
     console.log('💥 BŁĄD KRYTYCZNY SUITY: ' + e.message);

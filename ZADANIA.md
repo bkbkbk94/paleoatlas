@@ -123,6 +123,29 @@ klasyczne mapy Scotese (niestandardowa licencja non-commercial), wszystko co bez
 | B9 | **`og:url` + canonical + `sitemap.xml`** | 0,1 dnia | po **D1** | ⏳ D1 |
 | B10 | **Perf P.1** (2. przejście ≤65% czasu 1.) bywa 65–68% na software-canvas | 0,3 dnia | najpierw pomiar na sprzęcie z GPU, potem próg albo optymalizacja | ⬜ |
 
+## AUDYT JUNIORA 2026-11-10 (raport: `AUDYT_JUNIOR.md`)
+
+| # | Zadanie | Nakład | Status |
+|---|---|---|---|
+| J1 | Legenda biomów: nasłuch na całej mapie → grupy + filtr + rAF (29 → 0 przebudów/krok) | — | ✅ |
+| J2 | Paleta biomów: klucz liczbowy zamiast stringów w pętli 259 200 px (15% CPU) | — | ✅ |
+| J3 | Legenda: pomijanie zapisu identycznego HTML-a | — | ✅ |
+| J4 | Strażnik danych: brak pliku → komunikat, nie biała strona (test 10.16) | — | ✅ |
+| J5 | `esc()` escapuje cudzysłowy (atrybuty `data-*`; test 10.17) | — | ✅ |
+| J6 | `cultOf()`: nieznana kultura nie przerywa rysowania mapy/karty | — | ✅ |
+| J7 | Tooltip pyłków: escapowana nazwa | — | ✅ |
+| J8 | Liczby w „O danych" z danych, nie z ręki (test 10.18) | — | ✅ |
+| J9 | Dymek biomów: najnowsza pozycja kursora w klatce | — | ✅ |
+| J10 | Usunięte martwe pole `state.zoomWarnShown` | — | ✅ |
+| J11 | Favikona z marki (`assets/icon.svg` + PNG 192); offline: data-URI | — | ✅ |
+| J12 | `alt=""` na rastrze biomów | — | ✅ |
+| N1 | Diff markerów po ID przy kroku osi (dziś pełna przebudowa ~2–3 ms) | 0,3 dnia | ⬜ po P4 |
+| N2 | Cache warstw lądolodu per (epoka, wariant BIIS) — skok 100–180 ms na telefonie | 0,5 dnia | ⬜ |
+| N3 | Podział `js/app.js` (1,4 tys. linii, jedno IIFE) na moduły | 1 dzień | ⬜ przed P4 |
+| N4 | Markup: szablony + `textContent` zamiast stringów `innerHTML` (~20 miejsc) | 0,5 dnia | ⬜ przy i18n |
+| N5 | CSS: 12 × `!important` + powtórzone bloki w media queries | 0,2 dnia | ⬜ kosmetyka |
+| N6 | Koalescencja suwaka w rAF — **nie robić** (po J1 krok 1–5 ms; psułaby testy) | — | 🚫 |
+
 ## 🔒 Zamrożone (dyscyplina non-profit — nie robimy)
 
 Konta użytkowników · paywall warstw · reklamy · analityka behawioralna/cookies · nudge'y „engagement" ·

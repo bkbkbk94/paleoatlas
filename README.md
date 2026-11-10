@@ -610,6 +610,36 @@ Matuyama, MIS 20/16/12/8/6, LGM, Bølling–Allerød, dziś — sprawdzone wzrok
 
 ## Changelog
 
+- **Audyt „błędów juniora" (2026-11-10) — 12 napraw, 4 nowe testy, ~3× szybsza oś czasu.**
+  Pełny raport: **`AUDYT_JUNIOR.md`** (z liczbami i metodą). Najważniejsze:
+  - **Wydajność osi czasu (największa znaleziona wada).** Legenda biomów nasłuchiwała
+    `layeradd`/`layerremove` na **całej mapie**, więc każdy krok osi (kilkaset dodanych
+    warstw) przebudowywał ją od nowa — **29 mutacji DOM na krok**, ~6% czasu. Teraz nasłuch
+    jest na grupach warstw + filtr po tożsamości obiektu + sklejanie w jednej klatce:
+    **0 zbędnych przebudów**. Dodatkowo paleta klas biomów porównywana kluczem **liczbowym**
+    zamiast sklejanego stringa `r,g,b` — w pętli po 259 200 pikselach każdego rastra
+    (profil: 15% CPU + 8% odśmiecania), oraz pomijanie zapisu identycznego HTML-a legendy.
+    Pomiar (krok = 1 jednostka, przed → po): desktop **13,9 → 5,0 ms**, telefon z 4×
+    słabszym procesorem **49,4 → 16,6 ms**, najgorszy skok **602 → 182 ms**.
+  - **Odporność startu:** brak jednego z 23 plików danych nie daje już **białej strony** —
+    jest komunikat `role="alert"` („Nie udało się wczytać danych atlasu: brakuje SITES…")
+    z podpowiedzią o wersji offline. Test **10.16** symuluje brak `sites.js`.
+  - **Escapowanie cudzysłowów:** `esc()` obsługuje teraz `"` i `'`, bo jest używane także
+    w wartościach atrybutów (`data-pid`, `data-z`), a w bazie jest 10 nazw stanowisk
+    z cudzysłowem („laska magiczna"). Test **10.17**.
+  - **Nieznana kultura nie wywraca mapy:** `cultOf()` z neutralnym fallbackiem zamiast
+    `CULT[...]` w 6 miejscach (jedna zła wartość przerywała rysowanie punktów w połowie).
+  - **Liczby w „O danych" liczone z danych** — tekst podawał „26 kultur" (jest 25),
+    „140" i „146 wariantów zapisu" równocześnie (jest 268). Test **10.18** blokuje powrót
+    ręcznie wpisywanych liczb.
+  - **Drobne:** escapowana nazwa w tooltipie pyłków, dymek biomów bierze **najnowszą**
+    pozycję kursora (a nie pierwszą w klatce), `alt=""` na rastrze biomów, usunięte martwe
+    pole `state.zoomWarnShown`, **favikona z marki** (`assets/icon.svg` + PNG 192) zamiast
+    emoji w data-URI (ta sama wada, którą naprawiliśmy w ikonach PWA) — paczka offline
+    wbudowuje obie jako data-URI.
+  - **Bateria: 103/103 + 37/37 + 178/178 + 21/21 + 45/45** (384 asercje). Czego audyt
+    **nie** znalazł (0× `var`, 0× `eval`, brak wycieków globalnych, dane spójne, brak
+    wektora XSS) — też jest w raporcie; „N1–N6" to świadomie odłożone optymalizacje.
 - **Sprint P0 (2026-11-10) — bramka v1.0 bez decyzji blokujących + dwie znalezione wady.**
   Zrobione to, co audyty PM/PO wskazały jako „agent może od razu" (P0.2, P0.3, P0.5, P0.6, P1.5,
   T1.1) i część P0.4 bez zależności licencyjnej; **P0.1/P0.7 (tag v1.0) czekają na D1/D2**.
@@ -671,6 +701,9 @@ Matuyama, MIS 20/16/12/8/6, LGM, Bølling–Allerød, dziś — sprawdzone wzrok
   `shots/`). Oba zweryfikowane (`testzip` OK). Pozostały niezależnie: `PaleoAtlas_OFFLINE.html`
   (10,5 MB, odtwarzalny: `python3 tools/build_offline_pack.py`) oraz surowce `/home/user/biodata/`
   (odtwarzalne: `tools/fetch_biodata.sh`) — do repo dziennego nie wchodzą.
+- **`AUDYT_JUNIOR.md`** — audyt „błędów juniora" z **pomiarami** (profil CPU, mutacje DOM, czasy kroku
+  osi na desktopie i telefonie): 12 napraw (wydajność, odporność startu, escapowanie, spójność liczb),
+  6 świadomie odłożonych optymalizacji (N1–N6) i lista rzeczy sprawdzonych jako czyste.
 - **`AUDYT_DEV.md`** — ekspercki audyt developerski (backend/dane/narzędzia/frontend/testy/proces), z pełnej lektury
   kodu i grepów: strategia zero-backend uznana za poprawną („backendem" jest pipeline w `tools/`); werdykt **kod 8/10,
   proces 3/10**. Znaleziska: **brak `.git` i CI** (główny dług), brak `tools/requirements.txt`, `fetch_biodata.sh` bez
