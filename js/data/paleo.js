@@ -434,12 +434,12 @@ var GBR_NORTH = [[53.2, -3.5], [55, -6], [57, -7.5], [58.5, -6], [57.5, -3], [55
   ICE_SETS.younger_dryas = ICE_SETS.younger_dryas.concat(afrGlac(0.45, 0.75)); // ATLAS: readvance 11–13 ka (Fink 2014) — Atlas rośnie względem B-A, E Afryka cofa dalej
   ICE_SETS.early_holocene = ICE_SETS.early_holocene.concat(afrGlac(0.12, 0.06));
   var AFRICA_NOW = [
-    { name: 'Afryka — Kilimandżaro (Kibo): DZIŚ 1,76 km² — POMIAR (Cullen i in. 2013, stan 2011; schemat kształtu — krąg; 1912: 11,4 km²; prognozy: zanik do poł. XXI w.)', pts: afrDisc(-3.07, 37.35, 1.76) },
-    { name: 'Afryka — góra Kenia (Lewis Glacier): DZIŚ 0,15 km² — POMIAR (Prinz i in. 2018, stan 2016; schemat kształtu)', pts: afrDisc(-0.16, 37.32, 0.154) },
-    { name: 'Afryka — Ruwenzori (Mt Stanley/Speke/Baker): DZIŚ 1,14 km² — POMIAR (Mölg i in. 2006, stan 2005; schemat kształtu; 1906: 6,51 km²). ATLAS: dziś 0 km² — ostatnie lodowce niszowe zanikły w XX w.', pts: afrDisc(0.39, 29.87, 1.14) }
+    { name: 'Afryka — Kilimandżaro (Kibo): DZIŚ 1,76 km² — POMIAR (Cullen i in. 2013, stan 2011; schemat kształtu — krąg; 1912: 11,4 km²; prognozy: zanik do poł. XXI w.)', src: 'POMIAR', pts: afrDisc(-3.07, 37.35, 1.76) },
+    { name: 'Afryka — góra Kenia (Lewis Glacier): DZIŚ 0,15 km² — POMIAR (Prinz i in. 2018, stan 2016; schemat kształtu)', src: 'POMIAR', pts: afrDisc(-0.16, 37.32, 0.154) },
+    { name: 'Afryka — Ruwenzori (Mt Stanley/Speke/Baker): DZIŚ 1,14 km² — POMIAR (Mölg i in. 2006, stan 2005; schemat kształtu; 1906: 6,51 km²). ATLAS: dziś 0 km² — ostatnie lodowce niszowe zanikły w XX w.', src: 'POMIAR', pts: afrDisc(0.39, 29.87, 1.14) }
   ];
   var AUS_NOW = [
-    { name: 'Nowa Gwinea — Puncak Jaya (Carstensz + East Northwall Firn): DZIŚ ~0,2 km² — POMIAR (0,16–0,23 km² w 2022–2024 wg BMKG/Permana, monitoring Sentinel-2/PlanetScope/Pléiades; 1850: ~19,3 km²; 1942: ~13; 2000: 2,33; prognoza zaniku do ~2030). Tasmania i kontynent: 0 km² stałego lodu — Snowy/Kosciuszko nie odbudowały lodu po plejstocenie', pts: afrDisc(-4.083, 137.179, 0.2) }
+    { name: 'Nowa Gwinea — Puncak Jaya (Carstensz + East Northwall Firn): DZIŚ ~0,2 km² — POMIAR (0,16–0,23 km² w 2022–2024 wg BMKG/Permana, monitoring Sentinel-2/PlanetScope/Pléiades; 1850: ~19,3 km²; 1942: ~13; 2000: 2,33; prognoza zaniku do ~2030). Tasmania i kontynent: 0 km² stałego lodu — Snowy/Kosciuszko nie odbudowały lodu po plejstocenie', src: 'POMIAR', pts: afrDisc(-4.083, 137.179, 0.2) }
   ];
   ICE_SETS.now = ICE_HOLOCENE.concat(AFRICA_NOW).concat(AUS_NOW);
   /* fallback dla stadiałowych przekrojów Q19 ≥40 ka (app.js envIcePolys): te same dyski
@@ -534,8 +534,8 @@ var GBR_NORTH = [[53.2, -3.5], [55, -6], [57, -7.5], [58.5, -6], [57.5, -3], [55
   ['przedmaksymalny', 'lgm', 'poznanska', 'pomorska', 'bolling_allerod', 'younger_dryas', 'early_holocene']
     .forEach(function (k) { ICE_SETS[k] = ICE_SETS[k].concat(nzGlac(NZ_TIERS[k])); });
   var NZ_NOW = [
-    { name: 'Nowa Zelandia — Southern Alps (Aoraki/Mt Cook i reszta; 2 918 lodowców): DZIŚ 794 ± 34 km² — POMIAR (Baumann i in. 2021, J. Glaciol. 67:7–24, stan 2016; schemat kształtu — 1 dysk zbiorczy; 1978: 1 158 km² wg Chinn 2001; 7 lodowców >10 km²; obrysy jednostkowe: RGI 7.0 — pobranie po zalogowaniu NSIDC)', pts: afrDisc(-43.9, 169.9, 794) },
-    { name: 'Nowa Zelandia — Ruapehu (wyspa Płn.): DZIŚ 3,0 km² — POMIAR (Eaves & Brook 2020; jedyny lód wyspy Płn.; 1988: ~4 km²; zanik prognozowany)', pts: afrDisc(-39.28, 175.57, 3) }
+    { name: 'Nowa Zelandia — Southern Alps (Aoraki/Mt Cook i reszta; 2 918 lodowców): DZIŚ 794 ± 34 km² — POMIAR (Baumann i in. 2021, J. Glaciol. 67:7–24, stan 2016; schemat kształtu — 1 dysk zbiorczy; 1978: 1 158 km² wg Chinn 2001; 7 lodowców >10 km²; obrysy jednostkowe: RGI 7.0 — pobranie po zalogowaniu NSIDC)', src: 'POMIAR', pts: afrDisc(-43.9, 169.9, 794) },
+    { name: 'Nowa Zelandia — Ruapehu (wyspa Płn.): DZIŚ 3,0 km² — POMIAR (Eaves & Brook 2020; jedyny lód wyspy Płn.; 1988: ~4 km²; zanik prognozowany)', src: 'POMIAR', pts: afrDisc(-39.28, 175.57, 3) }
   ];
   ICE_SETS.now = ICE_HOLOCENE.concat(AFRICA_NOW).concat(AUS_NOW).concat(NZ_NOW);
   /* q-przekroje (app.js envIcePolys): q_lgm = skala LGM; starsze stadiały = MIS 4 „Southern

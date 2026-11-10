@@ -167,6 +167,23 @@ klasyczne mapy Scotese (niestandardowa licencja non-commercial), wszystko co bez
 | S5 | Własny mini-markdown (`md()`) — zostaje | 🚫 |
 | S6 | `SITES.find()` po ID — zostaje (0,01 ms) | 🚫 |
 
+## AUDYT SENIORA 2026-11-10 (raport: `AUDYT_SENIOR.md`)
+
+| # | Zadanie | Status |
+|---|---|---|
+| A1 | **Wykonywalny kontrakt danych** `tools/validate_data.js` (53 kontrole, ładuje w kolejności `index.html`) | ✅ pierwszy krok baterii + CI |
+| A2 | **CI** `.github/workflows/ci.yml` — kontrakt, świeżość stempla, pełna bateria w przeglądarce | ✅ (wcześniej zero CI) |
+| A3 | **Stempel wydania** `js/data/build_info.js` + `tools/stamp_build.py` (skrót, liczby, data) | ✅ (10.27) |
+| A4 | **Strażnik integralności w `app.js`** — porównanie ze stemplem; brak pliku → pasek „dane niekompletne" | ✅ (10.28) |
+| A5 | **Proweniencja pomiarów**: 6 poligonów `src: 'POMIAR'` (były podpisywane „rekonstrukcją uproszczoną") | ✅ (10.26) |
+| A6 | **Słownik: odnośniki po `id`** — 58 martwych odnośników, surowe slugi w chipach | ✅ (10.25) |
+| A7 | `DATA_CONTRACT.md` — zasady danych spisane (kolejność, 3 konwencje współrzędnych, proweniencja, stempel) | ✅ |
+| S7 | `window.PALEO` jako globalny punkt styku 19 skryptów — rozbicie na moduły ESM | ⬜ dług; **nie przed publikacją** (ryzyko regresji w danych) |
+| S8 | 185 szkiców bez `src` — ujednolicić oznaczenie „szkic autora" w nazwach | ⬜ dług kosmetyczny |
+| S9 | `ENV.ticks` niesortowane w 4 miejscach — **nie wolno** wyszukiwać binarnego bez sortowania | ⚠️ udokumentowane |
+| S10 | Szelfy: 5830 „rozwiniętych" długości — konwencja świadoma, opisana w kontrakcie | ⚠️ udokumentowane |
+| S11 | `--strict` (ostrzeżenia = błędy) jako bramka v1.0 | ⬜ po spłacie S8 |
+
 ## Licencja (D2 — ROZSTRZYGNIĘTE 2026-11-10)
 
 | # | Zadanie | Status |

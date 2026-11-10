@@ -211,7 +211,8 @@ const d1count = Object.values(P.ice_sets).flat().filter(p => p.src === 'DATED-1'
 const paleoHead = fs.readFileSync(require('path').resolve(__dirname,'..','js/data/paleo.js'), 'utf8').slice(0, 600);
 const appSrc = fs.readFileSync(require('path').resolve(__dirname,'..','js/app.js'), 'utf8');
 check('I.4b pozostałe poligony: DATED-1 podpisane (' + d1count + '), schematy portalu mają deklarację w pliku + domyślny tooltip w app',
-  d1count >= 20 && /SCHEMATYCZNE/.test(paleoHead) && /Rekonstrukcja uproszczona wg literatury/.test(appSrc));
+  d1count >= 20 && /SCHEMATYCZNE/.test(paleoHead) && /Rekonstrukcja uproszczona/.test(appSrc) &&
+  /ic\.src === 'POMIAR'/.test(appSrc));   /* pomiar ma własny podpis, nie „rekonstrukcję" */
 
 // I.5 kompletność haseł źródeł w UI-tekstach (autor + rok + repozytorium/doi)
 const srcOk = 'Batchelor' && !/undefined|NaN|\[object/.test(window.ICE_QUAT_SRC);
@@ -698,7 +699,8 @@ check('IX.5 q-przekroje: q_lgm = DANE (PA_AFRYKA_LGM, src GLACIMONTIS, ≥4 reko
 /* ============ X. AUSTRALIA + NOWA GWINEA + TASMANIA — GLACIMONTIS (fala 2) ============ */
 const AUS_RE = /^(Nowa Gwinea|Tasmania|Australia)/;
 const ausG = set => (P.ice_sets[set] || []).filter(p => p.src === 'GLACIMONTIS' && AUS_RE.test(p.name || ''));
-const ausScr = set => (P.ice_sets[set] || []).filter(p => !p.src && AUS_RE.test(p.name || ''));
+const SCHEMAT = p => !p.src || p.src === 'POMIAR';
+const ausScr = set => (P.ice_sets[set] || []).filter(p => SCHEMAT(p) && AUS_RE.test(p.name || ''));
 const tasG = set => ausG(set).filter(p => /^Tasmania/.test(p.name));
 const ngG = set => ausG(set).filter(p => /^Nowa Gwinea/.test(p.name));
 const ausScrSum = items => items.reduce((a, p) => a + areaKm2(p.pts || p.rings[0]), 0);
@@ -758,7 +760,7 @@ check('X.7 pozycje rekordów: dominant Nowej Gwinei w kordonie PNG (lat ∈ [−
 /* ============ XI. NOWA ZELANDIA — GLACIMONTIS (fala 2) + narracja ACR/YD jako schemat ============ */
 const NZ_RE = /^Nowa Zelandia/;
 const nzG = set => (P.ice_sets[set] || []).filter(p => p.src === 'GLACIMONTIS' && NZ_RE.test(p.name || ''));
-const nzScr = set => (P.ice_sets[set] || []).filter(p => !p.src && NZ_RE.test(p.name || ''));
+const nzScr = set => (P.ice_sets[set] || []).filter(p => SCHEMAT(p) && NZ_RE.test(p.name || ''));
 const nzScrSum = set => nzScr(set).reduce((a, p) => a + areaKm2(p.pts || p.rings[0]), 0);
 const nzIn = t => envIcePolys(t).filter(p => NZ_RE.test(p.name || ''));
 const nzQ = q => nzIn(ENV.ticks.find(t => t.q === q)).reduce((a, p) => a + areaKm2(p.pts || p.rings[0]), 0);

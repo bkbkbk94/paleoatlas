@@ -804,6 +804,96 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       new Set(Object.values(titles)).size === 4 && /PaleoAtlas/.test(titles.mapa),
       JSON.stringify(titles));
 
+    /* 10.25 słownik: odnośniki „zob. też" pokazują NAZWĘ hasła i prowadzą do istniejącego wpisu
+       (regresja: chip pokazywał surowy identyfikator „kultura_ahrensburska", a klik dawał pustkę) */
+    const gloss = await page.evaluate(async () => {
+      location.hash = '#slownik';
+      await new Promise(r => setTimeout(r, 300));
+      /* filtry (wyszukiwanie/kategoria) są trwałe między widokami — zerujemy je,
+         żeby policzyć odnośniki w całym słowniku, a nie w ostatniej kategorii */
+      const qel = document.getElementById('gloss-q');
+      qel.value = ''; qel.dispatchEvent(new Event('input'));
+      const allChip = document.querySelector('#gloss-cats .chip');
+      if (allChip) allChip.click();
+      await new Promise(r => setTimeout(r, 250));
+      const chips = [...document.querySelectorAll('#gloss-list .chip[data-z]')];
+      const sample = chips.slice(0, 5).map(c => c.textContent.trim());
+      const raw = chips.filter(c => /^[a-z0-9_]+$/.test(c.textContent.trim())).length;
+      /* klik w pierwszy chip: lista ma zawierać hasło o tej nazwie */
+      let clickOK = false, clickCount = 0;
+      if (chips.length) {
+        chips[0].click();
+        await new Promise(r => setTimeout(r, 250));
+        clickCount = document.querySelectorAll('#gloss-list .gloss-item').length;
+        clickOK = clickCount === 1;
+      }
+      return { total: chips.length, raw, sample, clickOK, clickCount };
+    });
+    check('10.25 słownik: odnośniki „zob. też" mają czytelne nazwy i klik prowadzi do hasła',
+      gloss.total > 50 && gloss.raw === 0 && gloss.clickOK,
+      'chipów:' + gloss.total + ' surowych id:' + gloss.raw + ' po kliku haseł:' + gloss.clickCount + ' np. ' + gloss.sample.join(' / '));
+
+    /* 10.26 proweniencja: pomiar (km²) NIE jest podpisywany jako „rekonstrukcja uproszczona" */
+    const prov = await page.evaluate(async () => {
+      /* wchodzimy w epokę „dziś" i szukamy poligonu pomiarowego w warstwie lodu */
+      const now = Object.keys(window.PALEO.ice_sets).includes('now');
+      if (!now) return { ok: false, why: 'brak zestawu now' };
+      const pomiar = window.PALEO.ice_sets.now.filter(p => p.src === 'POMIAR');
+      const bezSrc = window.PALEO.ice_sets.now.filter(p => !p.src);
+      /* czy każdy poligon podający km² ma src (nie udaje szkicu)? */
+      const allSets = Object.values(window.PALEO.ice_sets).flat();
+      const klamia = allSets.filter(p => !p.src && /POMIAR/.test(p.name || ''));
+      return { ok: true, pomiar: pomiar.length, bezSrc: bezSrc.length, klamia: klamia.length,
+               build: !!(window.BUILD && window.BUILD.dataVersion) };
+    });
+    check('10.26 proweniencja: poligony z pomiarem mają src=POMIAR (żaden nie udaje szkicu)',
+      prov.ok && prov.pomiar >= 5 && prov.klamia === 0,
+      'POMIAR:' + prov.pomiar + ' szkice bez src:' + prov.bezSrc + ' pomiary bez src:' + prov.klamia);
+
+    /* 10.27 stempel danych: portal zna wersję danych i liczby; zgadzają się z tym, co widać */
+    const stamp = await page.evaluate(async () => {
+      location.hash = '#dane';
+      await new Promise(r => setTimeout(r, 300));
+      const txt = document.body.innerText;
+      const B = window.BUILD || {};
+      const m = txt.match(/Wersja danych:\s*([0-9a-f]{12})/);
+      return {
+        maBuild: !!B.dataVersion,
+        wersjaWUI: m ? m[1] : null,
+        zgodna: m ? m[1] === B.dataVersion : false,
+        liczby: !!B.counts,
+        stanowiska: B.counts ? B.counts.stanowiska : 0,
+        realneStanowiska: window.SITES.rdzen.length + window.SITES.sasiedzi.length
+      };
+    });
+    check('10.27 stempel danych widoczny w „O danych" i zgodny z danymi',
+      stamp.maBuild && stamp.zgodna && stamp.liczby && stamp.stanowiska === stamp.realneStanowiska,
+      'wersja w UI:' + stamp.wersjaWUI + ' · stanowiska w stemplu:' + stamp.stanowiska + ' vs realne:' + stamp.realneStanowiska);
+
+    /* 10.28 strażnik integralności: gdy plik danych nie wczyta się, użytkownik widzi
+       wyraźny pasek „dane niekompletne" (wcześniej: mapa wyglądała prawie dobrze,
+       a w konsoli było tylko ciche pominięcie splice'a). Blokujemy jeden plik danych. */
+    {
+      const p2 = await browser.newPage();
+      let blocked = 0;
+      await p2.setRequestInterception(true);
+      p2.on('request', req => {
+        if (/js\/data\/ice_ice6g\.js/.test(req.url())) { blocked++; req.abort(); }
+        else req.continue();
+      });
+      await p2.goto(URL, { waitUntil: 'domcontentloaded' });
+      await sleep(2500);
+      const guard = await p2.evaluate(() => ({
+        banner: !!document.querySelector('.data-warn'),
+        dataOK: window.PA_DATA_OK,
+        text: (document.querySelector('.data-warn') || {}).textContent || ''
+      }));
+      check('10.28 strażnik kompletności danych: brak pliku → widoczny pasek ostrzeżenia',
+        blocked === 1 && guard.banner && guard.dataOK === false,
+        'zablokowane:' + blocked + ' pasek:' + guard.banner + ' PA_DATA_OK:' + guard.dataOK);
+      await p2.close();
+    }
+
     await shot('10_final');
   } catch (e) {
     console.log('💥 BŁĄD KRYTYCZNY SUITY: ' + e.message);

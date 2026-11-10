@@ -48,7 +48,9 @@ export PA_CHROME=$(command -v chromium || command -v google-chrome)   # ścieżk
 bash tools/run_tests.sh
 ```
 
-Skrypt odpala po kolei: `e2e.suite.js` (desktop, ~99 asercji), `e2e.mobile.suite.js` (37), `ice.science.suite.js`
+Skrypt odpala **najpierw kontrakt danych** (`node tools/validate_data.js`, 53 kontrole, bez przeglądarki —
+przy złamaniu przerywa, bo testy UI na zepsutych danych nie mają sensu), potem po kolei:
+`e2e.suite.js` (desktop, 113 asercji), `e2e.mobile.suite.js` (37), `ice.science.suite.js`
 (178 — walidacja lądolodu), `globe.suite.js` (21), `biomeshots.js` (45) i doradczo `perfcheck.js`.
 Każda suita sama podnosi serwer na własnym porcie (83xx/84xx) i robi zrzuty do `/tmp/shots*`.
 
@@ -77,9 +79,12 @@ Smoke-test po przebudowie: otwórz plik z dysku → mapa, oś czasu, globus, bio
 3. Uruchom właściwy builder (lista i kolejność w README §Struktura), np.
    `python3 tools/build_data.py` → `python3 tools/build_env.py` → `python3 tools/build_biomes.py`
    (pełna lista builderów i ich kolejność: README §Struktura).
-4. **Weryfikacja przebudowy:** zmiany powinny być puste lub zamierzone —
-   `git diff --stat js/data/`; liczności wypisuje każdy builder.
-5. Zawsze po zmianie danych: pełna bateria (§3) + przebudowa paczki offline (§4) + wpis w changelogu.
+4. **Przestempluj dane:** `python3 tools/stamp_build.py` (wersja danych + liczby obiektów;
+   bez tego walidator i CI zgłoszą „stempel nieaktualny”).
+5. **Weryfikacja przebudowy:** `node tools/validate_data.js` (kontrakt: kolejność ładowania,
+   geometria, proweniencja, odwołania) oraz `git diff --stat js/data/` — zmiany powinny być
+   puste lub zamierzone; liczności wypisuje każdy builder.
+6. Zawsze po zmianie danych: pełna bateria (§3) + przebudowa paczki offline (§4) + wpis w changelogu.
 
 ## 6. Ikony i obraz OG (brand assets)
 
@@ -129,6 +134,8 @@ Portal to pliki — wystarczy wrzucić katalog repo (bez `uploads/`, `biodata/`,
 | `AUDYT_PRODUKTOWY.md` | ocena wartości (9 wymiarów) |
 | `AUDYT_DEV.md` | dług techniczny, proces, CI |
 | `AUDYT_MID.md` | cykle życia widoków, timery, stan współdzielony, pamięć cache, kontrakty API |
+| `AUDYT_SENIOR.md` | architektura: kontrakty danych, powtarzalność buildów, CI, proweniencja, dług |
+| `DATA_CONTRACT.md` | **zasady danych**: kolejność ładowania, konwencje współrzędnych, proweniencja, identyfikatory, stempel |
 | `AUDYT_JUNIOR.md` | wydajność i odporność: zmierzone wąskie gardła, co naprawione, co świadomie odłożone (N1–N6) |
 | `AUDYT_KONKURENCJA_KOSZTY.md` | rynek, licencje, koszty |
 | `RAPORT_ZESPOLU_2026-11-10.md` | przegląd zespołu ekspertów + sprint P0 (stan po nim) |

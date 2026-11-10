@@ -24,6 +24,55 @@ if (missingGlobals.length) {
   return;
 }
 
+/* ============ KONTROLA KOMPLETNOŚCI DANYCH (cicha awaria → głośna) ============
+   Skrypty js/data/ składają się W KOLEJNOŚCI z index.html: późniejsze robią „splice"
+   na wcześniejszych, a każdy zaczyna się od `if (!window.PALEO …) return;`. Gdy kolejność
+   jest zła albo plik wypadnie, nic nie rzuca wyjątku — po prostu nie ma części poligonów
+   i mapa wygląda „prawie dobrze". Sprawdzamy więc sensowne minimum treści, a nie tylko
+   to, czy obiekt istnieje. Nie blokujemy startu (atlas jest użyteczny częściowo), ale
+   mówimy wprost, że dane są niekompletne — i co sprawdzić. */
+(function checkDataIntegrity() {
+  const iceAll = window.PALEO && window.PALEO.ice_sets ? Object.values(window.PALEO.ice_sets).flat() : [];
+  const actual = {
+    stanowiska: (SITES.rdzen || []).length + (SITES.sasiedzi || []).length,
+    kultury: (META.kultury || []).length,
+    fazy: (META.fazy || []).length,
+    przekroje: (ENV.ticks || []).length,
+    migawkiBiomow: (BIOME_META.epochs || []).length,
+    hasla: (GLOSSARY || []).length,
+    rozdzialy: (TOM1 || []).length,
+    poligonyLodu: iceAll.length,
+    poligonyZeZrodlem: iceAll.filter(p => p.src).length
+  };
+  /* Najmocniejszy strażnik: porównanie z stemplem wydania (js/data/build_info.js).
+     Stempel powstaje z tych samych danych (tools/stamp_build.py), więc każda różnica
+     oznacza, że część plików się nie wczytała albo paczka jest z innego wydania. */
+  const B = window.BUILD;
+  let problems = [];
+  if (B && B.counts) {
+    Object.keys(B.counts).forEach(k => {
+      if (actual[k] !== B.counts[k]) problems.push(k + ': ' + actual[k] + ' z ' + B.counts[k]);
+    });
+  } else {
+    /* brak stempla (starsza paczka): zostaje grube minimum sensowności */
+    const MIN = { stanowiska: 250, fazy: 17, przekroje: 40, migawkiBiomow: 40, hasla: 60, rozdzialy: 10, poligonyLodu: 300 };
+    problems = Object.entries(MIN).filter(([k, m]) => !(actual[k] >= m)).map(([k, m]) => k + ': ' + actual[k] + ' z ' + m);
+  }
+  window.PA_DATA_OK = problems.length === 0;
+  if (!problems.length) return;
+  console.error('PaleoAtlas: dane niekompletne — ' + problems.join('; '));
+  const bar = document.createElement('div');
+  bar.className = 'data-warn';
+  bar.setAttribute('role', 'alert');
+  bar.innerHTML = '<b>Dane atlasu są niekompletne.</b> Otrzymano mniej treści, niż deklaruje to wydanie' +
+    (B && B.dataVersion ? ' (wersja danych <code>' + esc(B.dataVersion) + '</code>)' : '') +
+    ': ' + esc(problems.slice(0, 4).join(', ')) + '. Najczęstsza przyczyna: pliki z <code>js/data/</code> ' +
+    'wczytały się w złej kolejności lub paczka jest uszkodzona. Odśwież stronę (Ctrl+R) albo pobierz ponownie ' +
+    'wersję offline. <button type="button" aria-label="Ukryj ostrzeżenie">×</button>';
+  bar.querySelector('button').onclick = () => bar.remove();
+  document.body.insertBefore(bar, document.body.firstChild);
+})();
+
 /* ------------------------------------------------- stałe i słowniczki UI */
 const CULT = {}; META.kultury.forEach(c => CULT[c.id] = c);
 /* Jedna zła/nowa wartość `kultura` w danych nie może wywalić całej mapy (pętla rysująca
@@ -836,9 +885,11 @@ function renderTimeLayers() {
         ? '<i>' + esc(window.GLAC_SRC || 'GLACIMONTIS (Lima i in. 2026)') + (ic.cite ? ' Źródło tego poligonu: <b>' + esc(ic.cite) + '</b>.' : '') + '</i>'
       : ic.src === 'Q19'
         ? '<i>' + esc(ICE_QUAT_SRC || 'Batchelor i in. 2019') + '</i>'
+        : ic.src === 'POMIAR'
+          ? '<i>POMIAR z literatury — liczebność i rok publikacji w nawiasie przy nazwie obiektu; obrys kształtu schematyczny (nie inwentaryzacja GIS).</i>'
         : ic.src === 'DANE_PORTALU'
           ? '<i>Margines w Polsce: dokładna linia z danych portalu; kształt własny (DATED-1/Batchelor nie pokrywa tego lobu lub rozbieżność korelacji).</i>'
-          : '<i>Rekonstrukcja uproszczona wg literatury (Batchelor i in. 2019; Ehlers & Gibbard) — poza zasięgiem DATED-1.</i>';
+          : '<i>Rekonstrukcja uproszczona (autor portalu) wg literatury (Batchelor i in. 2019; Ehlers & Gibbard) — poza zasięgiem DATED-1. Nie jest to pomiar.</i>';
     group.ice.addLayer(L.polygon(rings, {
       pane: 'icePane', renderer: RENDER_CANVAS.ice, color: '#bcd2e0', weight: 1.5, dashArray: '4 3',
       fillColor: '#e8f1f8', fillOpacity: .78
@@ -1336,6 +1387,23 @@ function glossCats() {
     el.appendChild(chip);
   });
 }
+/* Odnośniki „zob. też" w danych to STABILNE IDENTYFIKATORY haseł (np. „kultura_ahrensburska"),
+   a nie nazwy wyświetlane. Wcześniej UI dopasowywał je po nazwie: chip pokazywał surowy
+   identyfikator, a kliknięcie dawało pustą listę (58 martwych odnośników). Rozwiązujemy
+   po id, z awaryjnym dopasowaniem po nazwie dla starszych danych. */
+function glossFind(ref) {
+  return GLOSSARY.find(g => g.id === ref) || GLOSSARY.find(g => g.termin === ref) || null;
+}
+function glossChips(refs) {
+  const out = [];
+  refs.forEach(ref => {
+    const g = glossFind(ref);
+    if (g) out.push('<span class="chip" data-z="' + esc(g.id) + '">' + esc(g.termin) + '</span>');
+    else console.warn('[słownik] nieznany odnośnik:', ref);
+  });
+  return out.join(' ');
+}
+
 function renderGloss() {
   const q = glossState.q.toLowerCase();
   const list = window.GLOSSARY.filter(g =>
@@ -1345,11 +1413,13 @@ function renderGloss() {
   el.innerHTML = '<h2>Hasła słownika (' + list.length + ')</h2>' + list.map(g =>
     '<div class="gloss-item"><span class="kat">' + esc(g.kategoria.replace(/_/g, ' ')) + '</span>' +
     '<h3>' + esc(g.termin) + '</h3><p>' + esc(g.definicja) + '</p>' +
-    (g.zobacz_tez.length ? '<p class="dim">zob. też: ' + g.zobacz_tez.map(z =>
-      '<span class="chip" data-z="' + esc(z) + '">' + esc(z) + '</span>').join(' ') + '</p>' : '') + '</div>'
+    (g.zobacz_tez.length ? '<p class="dim">zob. też: ' + glossChips(g.zobacz_tez) + '</p>' : '') + '</div>'
   ).join('');
   el.querySelectorAll('.chip[data-z]').forEach(ch => ch.onclick = () => {
-    glossState.q = ch.dataset.z; document.getElementById('gloss-q').value = ch.dataset.z; renderGloss();
+    const cel = glossFind(ch.dataset.z);
+    glossState.q = cel ? cel.termin : ch.dataset.z;   /* szukamy po nazwie, nie po identyfikatorze */
+    document.getElementById('gloss-q').value = glossState.q;
+    renderGloss();
   });
 }
 document.getElementById('gloss-q').addEventListener('input', e => { glossState.q = e.target.value; renderGloss(); });
@@ -1376,6 +1446,10 @@ i źródło. Warstwy pochodzące z publikacji zewnętrznych zachowują licencje 
 pełne zestawienie w pliku <code>LICENCJE.md</code> w repozytorium.</p>
 <p class="dim">Cytowanie: Malwowy (2026), <i>PaleoAtlas — interaktywny atlas stanowisk
 paleolitu i mezolitu</i> (wersja 1.0), CC BY 4.0.</p>
+${window.BUILD ? '<p class="dim">Wersja danych: <code>' + esc(window.BUILD.dataVersion) + '</code> · ' +
+  (window.BUILD.counts ? window.BUILD.counts.stanowiska + ' stanowisk, ' + window.BUILD.counts.fazy + ' faz, ' +
+    window.BUILD.counts.przekroje + ' przekrojów środowiska, ' + window.BUILD.counts.migawkiBiomow + ' migawek biomów' : '') +
+  ' · stan na ' + esc(window.BUILD.generatedAt) + '. Ten sam skrót znajdziesz w paczce offline — pozwala sprawdzić, że mapa i dane pochodzą z tego samego wydania.</p>' : ''}
 
 <h3 class="about-h">Oś czasu</h3>
 <p>Oś jest <b>nieliniowa</b>: każda z <b>${FAZY.length} faz</b> — ${FAZY_KLIMAT} faz klimatycznych (z pliku <code>zlodowacenia_biomy.csv</code>) oraz

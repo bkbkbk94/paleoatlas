@@ -1,0 +1,87 @@
+name: Kontrola jakości
+
+# Kiedy: każdy push na dowolną gałąź i każdy pull request.
+# Po co: do dziś 390 asercji uruchamiano WYŁĄCZNIE ręcznie na jednej maszynie.
+# Zepsucie danych lub wyciek pamięci na globusie wychodziło dopiero przy wydaniu.
+on:
+  push:
+  pull_request:
+
+# Jedna kontrola na raz na gałąź — nowy push anuluje poprzedni (oszczędza minuty).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. KONTRAKT DANYCH ─────────────────────────────────────────────────────
+  # Szybka bramka (kilka sekund, bez przeglądarki). Sprawdza to, co najczęściej
+  # psuje się po cichu: kolejność ładowania js/data, geometrię, proweniencję,
+  # odnośniki słownika i świeżość stempla danych.
+  kontrakt-danych:
+    name: Kontrakt danych
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Walidator niezmienników (tools/validate_data.js)
+        run: node tools/validate_data.js
+
+      # Porównujemy tylko niezmienne pola (skrót + liczby). Regenerowanie pliku
+      # i diff dałoby fałszywy alarm, bo data i commit zmieniają się co build.
+      - name: Stempel danych jest aktualny
+        run: python3 tools/stamp_build.py --check
+
+      - name: Paczka offline buduje się z aktualnych danych
+        run: |
+          python3 tools/build_offline_pack.py
+          ls -lh /home/runner/PaleoAtlas_OFFLINE.html 2>/dev/null || true
+
+  # ── 2. TESTY W PRZEGLĄDARCE ────────────────────────────────────────────────
+  # Pełna bateria 390 asercji (suite e2e, mobilna, naukowa, globus, zrzuty biomów).
+  # Perf jest raportem doradczym — na maszynie CI timings są zbyt niestabilne.
+  testy-w-przegladarce:
+    name: Testy w przeglądarce
+    runs-on: ubuntu-latest
+    needs: kontrakt-danych
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: puppeteer-core
+        run: |
+          mkdir -p "$RUNNER_TEMP/pptr"
+          cd "$RUNNER_TEMP/pptr"
+          npm init -y >/dev/null 2>&1
+          npm i puppeteer-core@23 --no-audit --no-fund
+
+      - name: Bateria (tools/run_tests.sh)
+        env:
+          PA_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          PA_PUPPETEER: ${{ runner.temp }}/pptr/node_modules/puppeteer-core
+          PA_LOGDIR: ${{ runner.temp }}/pa-tests
+        run: |
+          chmod +x tools/run_tests.sh
+          bash tools/run_tests.sh
+
+      - name: Logi testów (zawsze, także przy błędzie)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logi-testow
+          path: ${{ runner.temp }}/pa-tests/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -15,6 +15,17 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
+# ── KROK 0: kontrakt danych (bez przeglądarki, <1 s) ─────────────────────────
+# Ładuje js/data/* w kolejności z index.html i sprawdza niezmienniki. Łapie to,
+# czego testy w przeglądarce nie widzą: cicho pominięte skrypty danych, złe
+# współrzędne, martwe odnośniki słownika, nieświeży stempel danych.
+echo "──────────────────────────────────────────────────────────────"
+echo "▶ kontrakt danych (tools/validate_data.js)"
+if node tools/validate_data.js; then :; else
+  echo "❌ Kontrakt danych złamany — przerywam (popraw dane, zanim testy UI mają sens)."
+  exit 1
+fi
+
 export PA_CHROME="${PA_CHROME:-$(command -v chromium || command -v chromium-browser || echo /usr/bin/chromium)}"
 export PA_PUPPETEER="${PA_PUPPETEER:-/tmp/pptr/node_modules/puppeteer-core}"
 

@@ -93,7 +93,14 @@ paleoatlas/
 
 1. Podmień/plik CSV w katalogu `uploads/` (nazwy plików jak dotychczas),
 2. uruchom `python3 tools/build_data.py`,
-3. odśwież stronę. Skrypt wypisuje raport kontroli (pominięte rekordy, rozkład kultur).
+3. **przestempluj dane:** `python3 tools/stamp_build.py` (wersja + liczby; bez tego CI czerwone),
+4. **sprawdź kontrakt:** `node tools/validate_data.js`,
+5. odśwież stronę. Skrypt wypisuje raport kontroli (pominięte rekordy, rozkład kultur).
+
+> **Kolejność plików `js/data/` w `index.html` ma znaczenie** — to nie lista „do wczytania”,
+> a sekwencja składania: późniejsze skrypty modyfikują wcześniejsze. Zasady (konwencje
+> współrzędnych, proweniencja, identyfikatory, stempel wydania) opisuje
+> **[DATA_CONTRACT.md](DATA_CONTRACT.md)** — przeczytaj go przed dodaniem nowej warstwy.
 
 ## Tryb paleo — „lądy takie, jakie były w epoce”
 
@@ -429,11 +436,14 @@ Panel **„Szukaj · legenda”** (lewy dolny róg mapy) łączy wyszukiwarkę, 
 ## Testy
 
 Automatyczne zestawy E2E (Chromium headless):
-- **bateria jedną komendą:** `bash tools/run_tests.sh` (6 suit po kolei, hermetycznie: brak internetu
+- **bateria jedną komendą:** `bash tools/run_tests.sh` — **najpierw kontrakt danych** (`node tools/validate_data.js`,
+  53 kontrole, <1 s, bez przeglądarki), potem 6 suit w Chromium (hermetycznie: brak internetu
   nie czerwieni baterii, ale każda odpowiedź ≥400 dla **własnych** zasobów jest błędem — asercje `1.1b`/`M7.2b`).
   Ścieżki przeglądarki i puppeteera ustawia się przez `PA_CHROME` / `PA_PUPPETEER` (domyślnie
   `/usr/bin/chromium` i `/tmp/pptr/node_modules/puppeteer-core`) — to warunek CI (T0.2),
-- **desktop: 99 testów** (`tools/e2e.suite.js`) — start bez błędów, 19 segmentów osi (17 + 2 głębokie),
+- **CI:** `.github/workflows/ci.yml` — każdy push i pull request uruchamia kontrakt danych,
+  kontrolę świeżości stempla i pełną baterię w przeglądarce (wcześniej wszystko ręcznie),
+- **desktop: 113 testów** (`tools/e2e.suite.js`) — start bez błędów, 19 segmentów osi (17 + 2 głębokie),
   9 kamieni milowych ♦, globalna chronologia: ≥45 przekrojów ENV i ≥90 pkt krzywej morza,
   18 kluczy lądolodu Q19 (Batchelor), ewolucja lodu wewnątrz fazy 1 (MIS 20→MIS 16/12),
   splice linii Sanu/Warty w geometrii Q19 (punkty verbatim), DANE_PORTALU dla MIS 8,
@@ -619,6 +629,19 @@ Matuyama, MIS 20/16/12/8/6, LGM, Bølling–Allerød, dziś — sprawdzone wzrok
   **`LICENCJE.md`** (6 pozycji oznaczonych ⚠ wymaga potwierdzenia przed publikacją).
 
 ## Changelog
+
+- **Audyt seniora — architektura i kontrakt danych (2026-11-10).** Wykonywalny kontrakt
+  (`tools/validate_data.js`, 53 kontrole) ładowany **w kolejności z `index.html`** — łapie to,
+  czego testy w przeglądarce nie widzą; pierwszy krok `run_tests.sh`. **CI wreszcie istnieje**
+  (`.github/workflows/ci.yml`: kontrakt + świeżość stempla + pełna bateria). **Stempel wydania**
+  (`js/data/build_info.js`, `tools/stamp_build.py`) — wersja danych w „O danych" i strażnik
+  integralności w `app.js` (brak pliku → widoczny pasek „dane niekompletne", test 10.28).
+  **Proweniencja pomiarów**: 6 poligonów (Kilimandżaro, Kenia, Ruwenzori, Puncak Jaya,
+  Southern Alps, Ruapehu) ma `src: 'POMIAR'` — wcześniej tooltip podpisywał pomiar
+  „rekonstrukcją uproszczoną". **Słownik**: odnośniki „zob. też" rozwiązuje się po stabilnym
+  `id`, nie po nazwie — 58 martwych odnośników (surowe slugi, pusta lista po kliknięciu)
+  naprawione, test 10.25. Zasady w **`DATA_CONTRACT.md`**, raport w **`AUDYT_SENIOR.md`**.
+  Bateria: **394 asercje** (113+37+178+21+45), kontrakt 0 błędów / 3 ostrzeżenia (dług).
 
 - **Licencja (2026-11-10, decyzja D2): kod MIT, treści CC BY 4.0 — © 2026 Malwowy.**
   Dodane `LICENSE`, `LICENSE-TRESCI.md` i **`LICENCJE.md`** — zestawienie licencji źródeł
