@@ -3,6 +3,8 @@
 # Fala 2: dropy dysków-schematów per faza (tylko tam, gdzie widać rekord grupy)
 # + nadpisanie PA_NZ_LGM / PA_AUS_LGM / PA_AFRYKA_LGM dla przekroju q_lgm.
 import json, os
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 items = json.load(open('/tmp/glac_w1.json'))
 n2 = sum(1 for it in items if it.get('grp'))
@@ -74,5 +76,5 @@ const afr = vis('afr').concat(vis('atlas'));
 if (afr.length) window.PA_AFRYKA_LGM = afr;
 })();
 """
-open('/home/user/paleoatlas/js/data/ice_glacmont.js', 'w').write(s)
-print('bytes', os.path.getsize('/home/user/paleoatlas/js/data/ice_glacmont.js'), '| rekordów fali 2:', n2, '/', len(items))
+open(ROOT + '/js/data/ice_glacmont.js', 'w').write(s)
+print('bytes', os.path.getsize(ROOT + '/js/data/ice_glacmont.js'), '| rekordów fali 2:', n2, '/', len(items))

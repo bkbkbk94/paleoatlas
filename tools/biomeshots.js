@@ -16,7 +16,7 @@
      A9 tooltips pyłka: pierwsza stacja 18k ma tooltip z nazwą + „DANE pyłkowe”
    Wynik: shots/bm_<ep>.png + bm_grid.json + bm_checks.json
    ============================================================================ */
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const http = require('http');
@@ -46,11 +46,11 @@ function head200(port, path) {
 }
 
 (async () => {
-  const server = spawn('python3', ['-m', 'http.server', '8389', '--bind', '127.0.0.1'], { cwd: '/home/user/paleoatlas' });
+  const server = spawn('python3', ['-m', 'http.server', '8389', '--bind', '127.0.0.1'], { cwd: require('path').resolve(__dirname, '..') });
   await sleep(1200);
   const results = [], notes = { frac: {} };
   const ok = (name, cond, info) => { results.push([name, !!cond, info === undefined ? '' : String(info)]); console.log((cond ? 'OK  ' : 'FAIL') + ' ' + name + (info !== undefined ? '  [' + info + ']' : '')); };
-  const browser = await puppeteer.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const browser = await puppeteer.launch({ executablePath: process.env.PA_CHROME || '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 760 });

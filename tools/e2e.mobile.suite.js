@@ -1,5 +1,5 @@
 /* PaleoAtlas — testy E2E widoku MOBILNEGO (390×844, dotyk) */
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const SHOTS = '/tmp/shots_mobile';
@@ -8,10 +8,10 @@ const URL = 'http://127.0.0.1:8335/';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
-  const server = spawn('python3', ['-m', 'http.server', '8335', '--bind', '127.0.0.1'], { cwd: '/home/user/paleoatlas', stdio: 'ignore' });
+  const server = spawn('python3', ['-m', 'http.server', '8335', '--bind', '127.0.0.1'], { cwd: require('path').resolve(__dirname, '..'), stdio: 'ignore' });
   await sleep(1200);
   const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/chromium', headless: true,
+    executablePath: process.env.PA_CHROME || '/usr/bin/chromium', headless: true,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--force-device-scale-factor=2']
   });
   let failed = 0; const results = [];
@@ -20,9 +20,19 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   try {
     const page = await browser.newPage();
     await page.emulate({ viewport: { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148' });
-    const errs = [];
+    /* jak w suicie desktop: kafelki zewnętrzne bez internetu to szum środowiska,
+       ale odpowiedzi ≥400 dla własnych zasobów = twardy błąd */
+    const ORIGIN = 'http://127.0.0.1:8335';
+    const errs = [], netNoise = [], ownBroken = [];
+    const isTileNoise = t => /Failed to load resource/i.test(t)
+      && /net::ERR_(CONNECTION|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|ADDRESS_UNREACHABLE|TIMED_OUT|CACHE_MISS|EMPTY_RESPONSE|SSL)/i.test(t);
     page.on('pageerror', e => errs.push(e.message));
-    page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+    page.on('console', m => {
+      if (m.type() !== 'error') return;
+      const t = m.text();
+      (isTileNoise(t) ? netNoise : errs).push(t);
+    });
+    page.on('response', r => { if (r.url().startsWith(ORIGIN) && r.status() >= 400) ownBroken.push(r.status() + ' ' + r.url()); });
     const hp = s => page.evaluate(q => document.querySelectorAll(q).length, s);
     const shot = async n => { await page.screenshot({ path: SHOTS + '/' + n + '.png' }); console.log('   📸 ' + n); };
     const setTime = v => page.evaluate(v => window.__PA.setSlider(v), v).then(() => sleep(300));
@@ -196,6 +206,63 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
     check('M7.1 słownik na telefonie (74 hasła)', await hp('.gloss-item') === 74, await hp('.gloss-item'));
     check('M7.2 brak błędów JS po routingu', errs.length === 0, errs.join('|').slice(0, 200));
+    check('M7.2b zero odpowiedzi ≥400 dla zasobów własnych', ownBroken.length === 0, ownBroken.slice(0, 3).join('|'));
+
+    /* ========== M11. BRAMKA v1.0 NA TELEFONIE (P0.3 / P0.5) ========== */
+    await page.bringToFront();
+    await page.goto(URL, { waitUntil: 'networkidle2' }); await sleep(1200);
+    const fs16 = await page.evaluate(() => {
+      const px = sel => {
+        const el = document.querySelector(sel);
+        return el ? parseFloat(getComputedStyle(el).fontSize) : null;
+      };
+      return { q: px('#srch-q'), s1: px('#srch-selects select'), gloss: px('#gloss-q'), w: window.innerWidth };
+    });
+    check('M11.1 pola wyszukiwania i selecty ≥16 px na telefonie (koniec autozoomu iOS)',
+      fs16.q >= 16 && fs16.s1 >= 16 && fs16.gloss >= 16, JSON.stringify(fs16));
+
+    const noOverlap = await page.evaluate(() => {
+      const card = document.getElementById('phasecard').getBoundingClientRect();
+      const layers = document.querySelector('.leaflet-control-layers').getBoundingClientRect();
+      const zoom = document.querySelector('.leaflet-control-zoom').getBoundingClientRect();
+      const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+      return {
+        w: window.innerWidth, card: [Math.round(card.left), Math.round(card.right), Math.round(card.top)],
+        layers: [Math.round(layers.left), Math.round(layers.top)],
+        vsLayers: hit(card, layers), vsZoom: hit(card, zoom)
+      };
+    });
+    check('M11.2 karta fazy nie wchodzi pod kontrolkę warstw ani zoom (≤430 px)',
+      noOverlap.vsLayers === false && noOverlap.vsZoom === false, JSON.stringify(noOverlap));
+
+    const tapTargets = await page.evaluate(() => {
+      const r = document.getElementById('legend-head').getBoundingClientRect();
+      const play = document.getElementById('tl-play').getBoundingClientRect();
+      const sliderThumb = getComputedStyle(document.getElementById('tl-slider')).height;
+      return { legendHead: Math.round(r.height), play: Math.round(play.height), slider: sliderThumb };
+    });
+    check('M11.3 cele dotyku: nagłówek legendy ≥32 px, przycisk osi ≥40 px',
+      tapTargets.legendHead >= 32 && tapTargets.play >= 40, JSON.stringify(tapTargets));
+
+    /* prawdziwa droga użytkownika klawiatury: Tab z początku dokumentu → skip-link
+       (widoczny), Enter → przeniesienie fokusu do #main */
+    await page.bringToFront();
+    await page.evaluate(() => { document.body.focus(); });
+    await page.keyboard.press('Tab');
+    await sleep(120);
+    const skipM = await page.evaluate(() => {
+      const a = document.activeElement;
+      const isSkip = !!a && a.classList && a.classList.contains('skip-link');
+      return {
+        present: !!document.querySelector('.skip-link'), isSkip,
+        rectTop: a ? Math.round(a.getBoundingClientRect().top) : null
+      };
+    });
+    await page.keyboard.press('Enter');
+    await sleep(200);
+    skipM.mainFocused = await page.evaluate(() => document.activeElement.id === 'main');
+    check('M11.4 skip-link na telefonie: Tab → widoczny link, Enter → fokus w #main',
+      skipM.present && skipM.isSkip && skipM.rectTop >= 0 && skipM.mainFocused, JSON.stringify(skipM));
   } catch (e) { console.log('💥 ' + e.message); failed++; }
 
   await browser.close(); server.kill();

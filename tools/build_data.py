@@ -13,7 +13,9 @@ import csv, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def find_uploads():
-    for cand in (os.path.join(ROOT, 'dane_zrodlowe'), os.path.join(ROOT, 'uploads'), os.path.join(os.path.dirname(ROOT), 'uploads'), '/home/user/uploads'):
+    cands = [os.environ.get('PA_UPLOADS'), os.path.join(ROOT, 'dane_zrodlowe'), os.path.join(ROOT, 'uploads'),
+             os.path.join(os.path.dirname(ROOT), 'uploads'), os.path.expanduser('~/uploads')]
+    for cand in [c for c in cands if c]:
         if os.path.isdir(cand):
             return cand
     sys.exit('Nie znaleziono katalogu z CSV (uploads/)')

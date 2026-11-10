@@ -9,6 +9,20 @@
 /* ------------------------------------------------- stałe i słowniczki UI */
 const CULT = {}; META.kultury.forEach(c => CULT[c.id] = c);
 
+/* Preferencja „mniej ruchu" (WCAG 2.3.3 / prefers-reduced-motion): wyłączamy animacje
+   programowe (flyTo, płynny zoom, fade kafelków). Ruch inicjowany przez użytkownika
+   (przeciąganie mapy, animacja osi po ▶) zostaje — to jego świadoma decyzja. */
+/* UWAGA: tu MUSI być obiekt MediaQueryList, nie boolean — podwójna negacja
+   (!!) zamieniłaby go w true/false i .matches byłby zawsze undefined
+   (dokładnie taki błąd wyszedł w teście 10.14). */
+const REDUCED_MOTION = (window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null);
+const noMotion = () => !!(REDUCED_MOTION && REDUCED_MOTION.matches);
+/* jedno miejsce decydujące, czy „lot" ma animację */
+function flyToPoint(latlng, zoom) {
+  if (noMotion()) map.setView(latlng, zoom, { animate: false });
+  else map.flyTo(latlng, zoom, { duration: .6 });
+}
+
 const TYP_PL = {
   obozowisko_otwarte: 'Obozowisko otwarte', jaskinia_schronisko: 'Jaskinia / schronisko',
   pracownia_kopalnia: 'Pracownia / kopalnia', inne: 'Inne', kompleks_mikroregion: 'Kompleks / mikroregion',
@@ -222,8 +236,27 @@ function matchesFilters(s) {
 }
 
 /* =========================================================================== MAPA */
-const map = L.map('map', { center: [52.3, 19.8], zoom: 6, minZoom: 3, maxZoom: 11, worldCopyJump: true, zoomControl: true, attributionControl: true });
+const map = L.map('map', { center: [52.3, 19.8], zoom: 6, minZoom: 3, maxZoom: 11, worldCopyJump: true, zoomControl: true, attributionControl: true,
+  /* „mniej ruchu": bez płynnego zoomu i przenikania kafelków (Leaflet 1.9 czyta to przy starcie) */
+  zoomAnimation: !noMotion(), fadeAnimation: !noMotion(), markerZoomAnimation: !noMotion() });
 map.attributionControl.setPrefix('PaleoAtlas (MVP)');
+
+/* Preferencja „mniej ruchu" bywa zmieniana w trakcie sesji (i w emulacji przeglądarki
+   potrafi dojść po starcie dokumentu) — dlatego nie wystarczy jej odczytać przy
+   tworzeniu mapy: stosujemy ją także teraz i przy każdej zmianie. Leaflet trzyma
+   efektywne flagi w _zoomAnimated/_fadeAnimated, więc ustawiamy oba poziomy. */
+function applyMotionPreference() {
+  const reduce = noMotion();
+  map.options.zoomAnimation = !reduce;
+  map.options.fadeAnimation = !reduce;
+  map.options.markerZoomAnimation = !reduce;
+  map._zoomAnimated = !reduce && !!(L.Browser.any3d);
+  map._fadeAnimated = !reduce && !!(L.Browser.any3d);
+}
+applyMotionPreference();
+if (REDUCED_MOTION && REDUCED_MOTION.addEventListener) {
+  REDUCED_MOTION.addEventListener('change', applyMotionPreference);
+}
 
 const P = name => { map.createPane(name); return name; };
 ['biomePane', 'landPane', 'ghostPane', 'hullPane', 'icePane', 'sitesPane', 'nbrPane'].forEach(P);
@@ -292,7 +325,7 @@ const ghostCoast = L.geoJSON(window.WORLD_LAND, {
   style: { color: LAND_STROKE, weight: 1, dashArray: '3 4', opacity: .55, fill: false }
 });
 
-L.control.layers(
+const layersCtl = L.control.layers(
   { 'Relief (Esri Terrain)': tiles.terrain,
     'Fizyczna kolorowa (Esri)': tiles.physical,
     'Współczesna OSM': tiles.osm,
@@ -310,6 +343,25 @@ L.control.layers(
   { position: 'topright', collapsed: true }
 ).addTo(map);
 
+/* Nota prywatności przy przełączniku podkładów (P0.4 / bramka v1.0).
+   Podkłady to jedyne miejsce, w którym portal dotyka cudzych serwerów — i tylko tam,
+   gdzie jest to konieczne (kafle wczytywane leniwie, wyłącznie po wyjściu z trybu paleo).
+   Nota jest w DOM kontrolki, więc pokazuje się razem z jej rozwinięciem. */
+(function tilePrivacyNote() {
+  const box = layersCtl.getContainer();
+  if (!box) return;
+  /* Nota MUSI siedzieć w sekcji listy kontrolki — element doklejony do samego
+     kontenera był widoczny także przy ZWINIĘTEJ kontrolce i nachodził na kartę fazy
+     (wykryte przez test M2.2: dotknięcie karty trafiało w notę). */
+  const list = box.querySelector('.leaflet-control-layers-list') || box;
+  const note = document.createElement('div');
+  note.className = 'tile-note';
+  note.innerHTML = 'Podkłady (Esri · OSM · OpenTopoMap) pobierane są z serwerów tych dostawców — '
+    + 'tylko po wyłączeniu trybu „lądy z epoki”. Reszta portalu nie wykonuje żadnych zapytań '
+    + 'sieciowych i nie stawia ciastek. Wersja offline: <code>PaleoAtlas_OFFLINE.html</code>.';
+  list.appendChild(note);
+})();
+
 /* ---------------- TRYB PALEO: lądy wyglądają jak w epoce z osi ----------------
    - ukrywa współczesne kafelki podkładu, rzeki i granice (były inne niż dziś)
    - pokazuje kontynenty (NE 50m) + wyschnięte szelfy + lądolód nad oceanem
@@ -320,6 +372,7 @@ function setPaleoView(on) {
   if (on === paleoView) return;
   paleoView = on;
   paleoBtn.classList.toggle('on', on);
+  paleoBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   paleoBtn.innerHTML = '🌎 Widok: lądy z epoki <b>' + (on ? 'WŁ.' : 'WYŁ.') + '</b>';
   const cont = map.getContainer();
   if (on) {
@@ -361,6 +414,7 @@ function setBritVar(v) {
   if (window.BRITICE_SET_VARIANT) window.BRITICE_SET_VARIANT(v);
   const cur = window.BRITICE_VARIANT || 'opt';
   britBtn.innerHTML = '🧊 BIIS: <b>' + BRIT_VLAB[cur] + '</b>';
+  britBtn.setAttribute('aria-label', 'Wariant rekonstrukcji lądolodu brytyjskiego: ' + BRIT_VLAB[cur] + ' — kliknij, aby zmienić');
   britBtn.classList.toggle('on', cur === 'opt');   // „on” = wariant preferowany autorów
   renderTimeLayers();
   if (window.GLOBE) window.GLOBE.markDirty();
@@ -420,8 +474,13 @@ const BIOME = {
    bitmapę, więc warstwa z całą pewnością dostaje nową teksturę. Na innych silnikach bez szkody
    (jedno dodatkowe, tanie przerysowanie po zakończeniu animacji). */
 function refreshCanvasRenderers() {
+  /* UWAGA (bug 2026-11): renderer pyłka może istnieć, ale NIE być podpięty do mapy —
+     gdy użytkownik wyłączy warstwę „Kotwice pyłkowe", a potem zmieni epokę, markery
+     powstają w odpiętej grupie i L.canvas nie dostaje _map. Bez tego strażnika każdy
+     kolejny zoom kończył się „TypeError: … reading '_animatingZoom'" i przerywał
+     dalsze odświeżanie warstw. Renderer bez mapy po prostu nie ma czego odświeżać. */
   [RENDER_CANVAS.ice, RENDER_CANVAS.land, RENDER_CANVAS.ghost, BIOME.pollenR]
-    .forEach(r => { if (r && r._update) r._update(); });
+    .forEach(r => { if (r && r._map && r._update) r._update(); });
 }
 map.on('zoomend', refreshCanvasRenderers);
 
@@ -837,6 +896,13 @@ function updateLegend(vis) {
     row.className = 'lc' + (state.filters.kultura === k ? ' active' : '');
     row.innerHTML = '<i style="background:' + CULT[k].kolor + '"></i><span>' + esc(CULT[k].nazwa) + '</span><b>' + counts[k] + '</b>';
     row.title = 'Klik — pokaż tylko tę kulturę (ponownie: wyłącz filtr)';
+    /* a11y: wiersz legendy jest przyciskiem filtru — musi dać się zaznaczyć Tabem i kliknąć Enterem/Spacją */
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-pressed', state.filters.kultura === k ? 'true' : 'false');
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    });
     row.onclick = () => {
       state.filters.kultura = (state.filters.kultura === k ? null : k);
       const sel = document.getElementById('srch-kultura');
@@ -886,6 +952,11 @@ function renderSearch() {
     const d = document.createElement('div');
     const ok = isVisible(s, state.bp);
     d.className = 'srch-hit' + (ok ? '' : ' offtime');
+    d.setAttribute('role', 'button');
+    d.setAttribute('tabindex', '0');
+    d.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); d.click(); }
+    });
     d.title = (ok ? 'Widoczne w bieżącej epoce' : 'Spoza bieżącej epoki — klik przeniesie oś czasu') +
       ' · ' + (s.kolekcja === 'rdzen' ? s.id : s.id + ' · ' + s.kraj);
     d.innerHTML = '<i style="background:' + CULT[s.kultura].kolor + '"></i>' +
@@ -894,7 +965,7 @@ function renderSearch() {
     d.onclick = () => {
       if (!isVisible(s, state.bp)) setSlider(bpToSlider(Math.round((s.od + s.do) / 2)));
       openSite(s);
-      map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), 7), { duration: .6 });
+      flyToPoint([s.lat, s.lon], Math.max(map.getZoom(), 7));
     };
     srchEls.results.appendChild(d);
   });
@@ -970,7 +1041,7 @@ function openSite(s) {
   h += '<p style="margin-top:1rem"><a href="#" id="flyto">📍 Przybliż na mapie</a></p>';
   document.getElementById('side-content').innerHTML = h;
 
-  document.getElementById('flyto').onclick = e => { e.preventDefault(); map.flyTo([s.lat, s.lon], 8, { duration: .6 }); };
+  document.getElementById('flyto').onclick = e => { e.preventDefault(); flyToPoint([s.lat, s.lon], 8); };
   document.querySelectorAll('#side-content .chip[data-pid]').forEach(ch => {
     ch.onclick = () => {
       const t = SITES.rdzen.find(x => x.id === ch.dataset.pid) || SITES.sasiedzi.find(x => x.id === ch.dataset.pid);
@@ -1028,12 +1099,17 @@ slider.addEventListener('change', () => {
 let playTimer = null;
 document.getElementById('tl-play').onclick = () => {
   const btn = document.getElementById('tl-play');
-  if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = '▶'; return; }
+  const setPlayUI = playing => {
+    btn.textContent = playing ? '⏸' : '▶';
+    btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    btn.setAttribute('aria-label', playing ? 'Zatrzymaj animację osi czasu' : 'Odtwórz animację osi czasu');
+  };
+  if (playTimer) { clearInterval(playTimer); playTimer = null; setPlayUI(false); return; }
   if (+slider.value >= TL_MAX) setSlider(0);
-  btn.textContent = '⏸';
+  setPlayUI(true);
   playTimer = setInterval(() => {
     const v = +slider.value + 2;
-    if (v >= TL_MAX) { clearInterval(playTimer); playTimer = null; btn.textContent = '▶'; }
+    if (v >= TL_MAX) { clearInterval(playTimer); playTimer = null; setPlayUI(false); }
     setSlider(v);
   }, 140);
 };
@@ -1049,12 +1125,17 @@ document.getElementById('legend-head').onclick = () => {
   const open = l.classList.toggle('open');
   b.style.display = open ? 'block' : 'none';
   document.getElementById('legend-toggle').textContent = open ? '–' : '+';
+  document.getElementById('legend-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
 };
 
 /* =========================================================================== ROUTING / WIDOKI */
 function show(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
-  document.querySelectorAll('#top nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+  document.querySelectorAll('#top nav a').forEach(a => {
+    const on = a.dataset.view === view;
+    a.classList.toggle('active', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
   if (view === 'mapa') setTimeout(() => map.invalidateSize(), 50);
   if (window.GLOBE) (view === 'globus' ? window.GLOBE.activate() : window.GLOBE.deactivate());
 }
@@ -1208,8 +1289,7 @@ Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM (do +20 m w plioc
 <tr><td>Lądolód — MIS 18 i wczesny plejstocen (MIS 36/52–54/62/82)</td><td><b>SCHEMAT-analog</b>: kształt pożyczony z najbliższego przekroju (MIS 20–24 / wczesny Matuyama / późny Gauss), rząd wielkości wg LR04; etykieta i tooltip ⚠ jawnie to zaznaczają</td></tr>
 <tr><td>Poziom morza</td><td>uproszczona krzywa eustatyczna portalu (102 pkt): Waelbroeck i in. 2002; Spratt &amp; Lisiecki 2016; pliocen: Miller i in. 2020 / PRISM; steruje progiem szelfu</td></tr>
 <tr><td>Dawne lądy / wyschnięty szelf</td><td><b>DANE</b>: batymetria ETOPO2v2 (NOAA/NCEI, 2′) + próg z globalnej krzywej (−5…−125 m); baseny zamknięte (Czarne, Kaspijskie): przybliżenie 1. rzędu; paleojeziora przylodowcowe Patagonii: osobna warstwa DANYCH PATICE (wiersz wyżej)</td></tr>
-<tr><td>Biomy kontynentu</td><td><b>SCHEMAT roboczy</b> — do podmiany na BIOME 6000 / PMIP4; w fazach głębokich tylko odcień zimno/ciepło wg przekroju</td></tr>
-<tr><td>Podkład</td><td>Esri Terrain / Physical / Hydro (rzeki, góry), OSM, OpenTopoMap</td></tr>
+<tr><td>Podkład</td><td>Esri Terrain / Physical / Hydro (rzeki, góry), OSM, OpenTopoMap — <b>jedyne warstwy pobierane z zewnątrz</b>, i tylko po wyłączeniu trybu „lądy z epoki” (nota prywatności przy przełączniku warstw). Reszta portalu działa bez sieci.</td></tr>
 <tr><td>Granice współczesne</td><td>warstwa przełączalna (Esri Boundaries); miejsce na warstwy granic historycznych</td></tr>
 <tr><td>Wyszukiwarka i filtry</td><td>po nazwie, miejscowości, regionie, kulturze, typie stanowiska, homininie i statusie — panel „Szukaj · legenda” na mapie</td></tr>
 <tr><td>Kierunek lądolodu</td><td>wartości robocze z CSV są na wyświetlaczu tłumaczone na opis (np. <code>polnoc_silna_recesja</code> → „margines na północy — silna recesja”)</td></tr>
@@ -1245,6 +1325,7 @@ const phasecard = document.getElementById('phasecard');
 function applyMobileInit() {
   if (mobileMQ.matches) phasecard.classList.add('closed');
   else phasecard.classList.remove('closed');
+  phasecard.setAttribute('aria-expanded', phasecard.classList.contains('closed') ? 'false' : 'true');
   const lg = document.getElementById('legend');
   if (mobileMQ.matches && lg.classList.contains('open')) {
     lg.classList.remove('open');
@@ -1253,7 +1334,16 @@ function applyMobileInit() {
   }
 }
 if (mobileMQ.addEventListener) mobileMQ.addEventListener('change', applyMobileInit);
-phasecard.addEventListener('click', () => { if (mobileMQ.matches) phasecard.classList.toggle('closed'); });
+function phasecardToggle() {
+  if (!mobileMQ.matches) return;
+  const closed = phasecard.classList.toggle('closed');
+  phasecard.setAttribute('aria-expanded', closed ? 'false' : 'true');
+}
+/* klik w sam pasek/kartę zwija–rozwija; klik w przycisk (paleo, BIIS) ma swoje akcje */
+phasecard.addEventListener('click', e => { if (e.target.closest && e.target.closest('button')) return; phasecardToggle(); });
+phasecard.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target === phasecard) { e.preventDefault(); phasecardToggle(); }
+});
 paleoBtn.addEventListener('click', e => e.stopPropagation());
 applyMobileInit();
 
@@ -1267,6 +1357,15 @@ window.__PA = {
   map, setSlider, bpToSlider, renderSearch, clearFilters,
   envTickForBP, seaAtBP, envIcePolys, envIcePolysCached, fazaForBP, setBritVar,
   biomeEpochForBP, biomeClassAt, biomePollenKeyFor, biomeGridFor, BIOME, renderBiome, group,
+  /* diagnostyka preferencji ruchu (testy P0.5): trzy odczyty powinny być zgodne */
+  reducedMotion: () => noMotion(),
+  rmDiag: () => ({
+    stored: !!(REDUCED_MOTION && REDUCED_MOTION.matches),
+    fresh: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    media: (REDUCED_MOTION && REDUCED_MOTION.media) || null,
+    type: Object.prototype.toString.call(REDUCED_MOTION),
+    mmIsNative: /\[native code\]/.test(String(window.matchMedia))
+  }),
   RENDER_CANVAS, refreshCanvasRenderers, ghostCoast,
   get bp() { return state.bp; }, filters: state.filters,
   openSiteById: id => {

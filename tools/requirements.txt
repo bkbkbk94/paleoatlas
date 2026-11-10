@@ -1,0 +1,20 @@
+# PaleoAtlas — zależności pipeline'u danych (tools/*.py)
+# Instalacja:  python3 -m pip install -r tools/requirements.txt
+#
+# Wersje przypięte do tych, na których zbudowano dane w repo (Debian bookworm / Python 3.11).
+# Podnoszenie wersji jest bezpieczne, ale po każdej zmianie uruchom ponownie buildery
+# i porównaj rozmiary plików w js/data/ (patrz RUNBOOK.md §5 „weryfikacja przebudowy").
+
+numpy==1.24.2
+shapely==2.0.1
+pyshp==2.3.1
+netCDF4==1.6.2
+pyproj==3.4.1
+Pillow==9.4.0
+opencv-python-headless==4.7.0.72
+
+# Uwagi:
+# • opencv jest używany tylko w tools/build_biomes.py (maska/progowanie rastrów) —
+#   wystarczy wariant „headless" (bez GUI, mniejszy).
+# • narzędzia nie pobierają nic z sieci poza tools/fetch_biodata.sh (surowe .nc biomów).
+# • surowe źródła (biodata/, uploads/) NIE są w repo — patrz README §Aktualizacja danych.

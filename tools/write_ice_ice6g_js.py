@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Z /tmp/ice6g.json (z build_ice_ice6g.py) pisze js/data/ice_ice6g.js
 import json, os
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 d = json.load(open('/tmp/ice6g.json'))
 rings, rings_globe = d['rings'], d['rings_globe']
@@ -107,5 +109,5 @@ Object.keys(MAPIS).forEach(k => {
 });
 })();
 """
-open('/home/user/paleoatlas/js/data/ice_ice6g.js', 'w').write(s)
-print('bytes', os.path.getsize('/home/user/paleoatlas/js/data/ice_ice6g.js'))
+open(ROOT + '/js/data/ice_ice6g.js', 'w').write(s)
+print('bytes', os.path.getsize(ROOT + '/js/data/ice_ice6g.js'))

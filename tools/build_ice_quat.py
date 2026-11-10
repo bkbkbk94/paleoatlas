@@ -10,15 +10,17 @@ jeżeli nie — osobny poligon DANE_PORTALU z informacją o rozbieżności.
 """
 import shapefile, json, numpy as np, os, glob
 from pyproj import Transformer
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 BASE = '/tmp/icedata/batchelor'
-OUT = '/home/user/paleoatlas/js/data/ice_quat.js'
+OUT = ROOT + '/js/data/ice_quat.js'
 SIMPL_TOL = 0.06
 MIN_PART_PTS = 8
 
 tr_laea = Transformer.from_crs("+proj=laea +lat_0=90 +lon_0=0 +datum=WGS84 +units=m", "EPSG:4326", always_xy=True)
 
-_m = open('/home/user/paleoatlas/js/data/meta.js', encoding='utf-8').read()
+_m = open(ROOT + '/js/data/meta.js', encoding='utf-8').read()
 META = json.loads(_m[_m.index('=') + 1:_m.rindex(';')])
 LINES = {f['id']: [[p['lat'], p['lon']] for p in (f.get('linia_pl') or [])] for f in META['fazy']}
 

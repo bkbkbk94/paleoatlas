@@ -22,9 +22,11 @@ Rekordy z Age==0 w plikach Icesheet*.shp to poligony pomocnicze (poza akcją prz
 import shapefile, json, os
 from math import sin
 from pyproj import Transformer
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 SRC = '/tmp/patice/Supplementary data/Shapefiles/'
-OUT = '/home/user/paleoatlas/js/data/ice_patice.js'
+OUT = ROOT + '/js/data/ice_patice.js'
 SIMPL_TOL = 0.02          # stopnie (~2 km) — Patagonia jest wąska, fiordy/loby wymagają szczegółu
 MIN_AREA_KM2 = 10         # drobne plamy pomijamy (skala portalu)
 TO_WGS = Transformer.from_crs('EPSG:32718', 'EPSG:4326', always_xy=True)

@@ -1,0 +1,19 @@
+{
+  "name": "PaleoAtlas — paleolit i mezolit w czasie i przestrzeni",
+  "short_name": "PaleoAtlas",
+  "description": "Interaktywna mapa paleolitu i mezolitu: 3,3 mln lat na jednej osi czasu, lądolód i poziom morza z rekonstrukcji naukowych, biomy, dawne linie brzegowe i stanowiska kultur — każda warstwa podpisana źródłem.",
+  "lang": "pl",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12100d",
+  "theme_color": "#12100d",
+  "categories": ["education", "reference", "science"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

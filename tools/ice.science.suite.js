@@ -53,7 +53,7 @@
      Lambeck i in. 2010; Miller i in. 2020; USGS PRISM; Marks i in. (linie PL z CSV);
      Dalton, Dulfer, Margold i in. 2023 (NADI-1, QSR 321:108345; Zenodo 10.5281/zenodo.8161764).
 ============================================================================ */
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -70,7 +70,7 @@ function check(id, cond, info) {
 /* ------------- ładowanie danych jak w przeglądarce ------------- */
 global.window = {};
 for (const f of ['paleo.js', 'ice_dated.js', 'ice_nadi.js', 'ice_patice.js', 'ice_patlakes.js', 'ice_ice6g.js', 'ice_britice.js', 'ice_glacmont.js', 'ice_quat.js', 'ice_rgi_isl.js', 'env.js']) {
-  eval(fs.readFileSync('/home/user/paleoatlas/js/data/' + f, 'utf8'));
+  eval(fs.readFileSync(require('path').resolve(__dirname,'..','js/data') + '/' + f, 'utf8'));
 }
 const P = window.PALEO, Q = window.ICE_QUAT, ENV = window.ENV;
 const parts = p => (p.rings || [p.pts]);
@@ -208,8 +208,8 @@ for (const key of Object.keys(Q)) for (const p of Q[key]) {
 check('I.4a przekroje Q19: każdy poligon ma src ∈ {Q19, DANE_PORTALU} i nazwę', qNoSrc === 0 && qBadSrc === 0 && noName === 0,
   'bez src:' + qNoSrc + ' obcy src:' + qBadSrc + ' bez nazwy:' + noName);
 const d1count = Object.values(P.ice_sets).flat().filter(p => p.src === 'DATED-1').length;
-const paleoHead = fs.readFileSync('/home/user/paleoatlas/js/data/paleo.js', 'utf8').slice(0, 600);
-const appSrc = fs.readFileSync('/home/user/paleoatlas/js/app.js', 'utf8');
+const paleoHead = fs.readFileSync(require('path').resolve(__dirname,'..','js/data/paleo.js'), 'utf8').slice(0, 600);
+const appSrc = fs.readFileSync(require('path').resolve(__dirname,'..','js/app.js'), 'utf8');
 check('I.4b pozostałe poligony: DATED-1 podpisane (' + d1count + '), schematy portalu mają deklarację w pliku + domyślny tooltip w app',
   d1count >= 20 && /SCHEMATYCZNE/.test(paleoHead) && /Rekonstrukcja uproszczona wg literatury/.test(appSrc));
 
@@ -217,7 +217,7 @@ check('I.4b pozostałe poligony: DATED-1 podpisane (' + d1count + '), schematy p
 const srcOk = 'Batchelor' && !/undefined|NaN|\[object/.test(window.ICE_QUAT_SRC);
 check('I.5 ICE_QUAT_SRC: autor, rok, DOI/repozytorium',
   /Batchelor i in\. 2019/.test(window.ICE_QUAT_SRC) && /(10\.1038\/s41467|osf\.io)/.test(window.ICE_QUAT_SRC) && srcOk);
-const datedHead = fs.readFileSync('/home/user/paleoatlas/js/data/ice_dated.js', 'utf8').slice(0, 400);
+const datedHead = fs.readFileSync(require('path').resolve(__dirname, '..', 'js/data/ice_dated.js'), 'utf8').slice(0, 400);
 check('I.6 nagłówek DATED-1: Hughes i in. 2016 + DOI PANGAEA', /Hughes/.test(datedHead) && /10\.1594\/PANGAEA\.848117/.test(datedHead));
 
 // I.7 obiekty Q19 nie mogą mieć kolizji z nie-nazwanymi schematami starodawnymi (tylko jedno src=portal per lobe)
@@ -471,7 +471,7 @@ check('IV.2 lob gardzieński istnieje jako osobny poligon z etykietą danych por
 const NADI_KEYS = ['przedmaksymalny', 'lgm', 'poznanska', 'pomorska', 'bolling_allerod', 'younger_dryas', 'early_holocene'];
 const nadiOf = k => (P.ice_sets[k] || []).filter(p => p.src === 'NADI-1');
 
-const nadiHead = fs.readFileSync('/home/user/paleoatlas/js/data/ice_nadi.js', 'utf8').slice(0, 700);
+const nadiHead = fs.readFileSync(require('path').resolve(__dirname,'..','js/data/ice_nadi.js'), 'utf8').slice(0, 700);
 check('VI.1 nagłówek NADI-1: Dalton i in. 2023 + DOI artykułu + DOI Zenodo + zadeklarowany wariant OPTIMAL',
   /Dalton/.test(nadiHead) && /10\.1016\/j\.quascirev\.2023\.108345/.test(nadiHead) &&
   /10\.5281\/zenodo\.8161764/.test(nadiHead) && /OPTIMAL/.test(nadiHead));
@@ -921,7 +921,7 @@ check('XII.3 splice: wszystkie 8 faz degla+„now” mają wpis src=ICE6G i ZERO
   antIn('mis3').some(p => p.src === undefined) && antIn('eem').some(p => p.src === undefined),
   ANT_FAZY.map(k => k.slice(0, 4) + ':' + antIn(k).map(p => p.src || 'schemat').join('+')).join(' '));
 /* XII.4 łańcuch cytowań w app.js + zwartość ICE6G_SRC */
-const ice6gHead = fs.readFileSync('/home/user/paleoatlas/js/data/ice_ice6g.js', 'utf8').slice(0, 1400);
+const ice6gHead = fs.readFileSync(require('path').resolve(__dirname,'..','js/data/ice_ice6g.js'), 'utf8').slice(0, 1400);
 check('XII.4 proweniencja: nagłówek + ICE6G_SRC z DOI (ggu140, 2014JB011176) i RAISED/Bentley 2014; app.js ma gałąź tooltipa ICE6G',
   /10\.1093\/gji\/ggu140/.test(ice6gHead) && /2014JB011176/.test(ice6gHead) && /Bentley/.test(ice6gHead) &&
   /10\.1093\/gji\/ggu140/.test(window.ICE6G_SRC || '') && /RAISED/.test(window.ICE6G_SRC || '') && /ICE6G/.test(appSrc),
@@ -986,7 +986,7 @@ check('XIII.4 detale okien: younger_dryas zawiera tylko rekordy z win ∋ younge
   ydOK && ydG.length >= 1,
   'rekordów w mł. dryasie: ' + ydG.length);
 /* XIII.5 proweniencja: nagłówek + GLAC_SRC + app.js (tooltip + wiersz „O danych”) */
-const glacHead = fs.readFileSync('/home/user/paleoatlas/js/data/ice_glacmont.js', 'utf8').slice(0, 1500);
+const glacHead = fs.readFileSync(require('path').resolve(__dirname,'..','js/data/ice_glacmont.js'), 'utf8').slice(0, 1500);
 check('XIII.5 proweniencja: DOI s41597-026-06841-z + Zenodo 15600659 + CC-BY; tooltip z cytowaniem poligonu (ic.cite); wiersz „O danych” istnieje',
   /10\.1038\/s41597-026-06841-z/.test(glacHead) && /15600659/.test(glacHead) && /CC-BY/.test(glacHead) &&
   /s41597-026-06841-z/.test(window.GLAC_SRC || '') && /GLACIMONTIS/.test(appSrc) && /ic\.cite/.test(appSrc),
@@ -1223,9 +1223,9 @@ check('XX.3 Antarktyda ≥ MIS 3: kotwica ≈ „dziś” z JAWNĄ notką (RAISE
 
 
 /* ================= V. UI/BROWSER — PRAWDA W PASKU FAZOWYM ================= */
-const server = spawn('python3', ['-m', 'http.server', '8347', '--bind', '127.0.0.1'], { cwd: '/home/user/paleoatlas' });
+const server = spawn('python3', ['-m', 'http.server', '8347', '--bind', '127.0.0.1'], { cwd: require('path').resolve(__dirname, '..') });
 await sleep(1200);
-const browser = await puppeteer.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+const browser = await puppeteer.launch({ executablePath: process.env.PA_CHROME || '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1400, height: 900 });

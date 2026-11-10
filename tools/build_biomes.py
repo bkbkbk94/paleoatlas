@@ -32,9 +32,11 @@ Całość jest osadzona na SIATCE Krapp (0,5°, lat -89,75..89,75 w górę).
 import numpy as np, json, os, re, time
 import netCDF4 as nc
 from PIL import Image
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
-DATA = '/home/user/biodata'
-OUTDIR = '/home/user/paleoatlas/js/data/biome'
+DATA = os.environ.get('PA_BIODATA', os.path.abspath(os.path.join(ROOT, '..', 'biodata')))
+OUTDIR = ROOT + '/js/data/biome'
 NLON, NLAT = 720, 360
 LAT0, DLAT = -89.75, 0.5
 LON0, DLON = -179.75, 0.5
@@ -200,7 +202,7 @@ def hglite(V):
 
 # ---------------------------------------------------------------- lód: Q19 + Antarktyda
 def load_quat():
-    src = open('/home/user/paleoatlas/js/data/ice_quat.js', encoding='utf-8').read()
+    src = open(ROOT + '/js/data/ice_quat.js', encoding='utf-8').read()
     m = re.search(r'window\.ICE_QUAT\s*=\s*\{', src)
     i = m.end() - 1
     # domknięcie nawiasów (średniki występują w stringach — liczymy klamry poza stringami)
@@ -235,7 +237,7 @@ def ice_mask(qkey, ICE):
 
 def antarctica_mask():
     import cv2
-    w = json.loads(open('/home/user/paleoatlas/js/data/world_land.js', encoding='utf-8').read().split('=', 1)[1].strip().rstrip(';'))
+    w = json.loads(open(ROOT + '/js/data/world_land.js', encoding='utf-8').read().split('=', 1)[1].strip().rstrip(';'))
     can = np.zeros((NLAT, NLON), np.uint8)
     for f in w['features']:
         g = f['geometry']
@@ -268,7 +270,7 @@ def js_obj(src, name):
     raise RuntimeError('parse ' + name)
 
 def load_env():
-    src = open('/home/user/paleoatlas/js/data/env.js', encoding='utf-8').read()
+    src = open(ROOT + '/js/data/env.js', encoding='utf-8').read()
     return js_obj(src, 'window.ENV')
 
 def ice_for(ka, ENV):
@@ -374,7 +376,7 @@ def main():
             if c is None and nm: miss[str(nm)] = miss.get(str(nm), 0) + 1
             if c: anchors[ep].append([round(float(lat), 3), round(float(lon), 3), c, name, dset])
     print('PYŁEK: 0k=%d 6k=%d 18k=%d; nierozpoznane nazwy: %s' % (len(anchors['0k']), len(anchors['6k']), len(anchors['18k']), miss or 'brak'))
-    with open('/home/user/paleoatlas/js/data/biome_pollen.js', 'w', encoding='utf-8') as f:
+    with open(ROOT + '/js/data/biome_pollen.js', 'w', encoding='utf-8') as f:
         f.write('// Stanowiska pyłkowe BIOME 6000 v4.2 (Prentice 2000; Harrison 2001; Bigelow 2003; Pickett 2004'
                 ' + ref. regionalne: Marchant Ameryka Płd.; Ni Chiny; Sutra Indie; SEAPAC) — DANE pomiarowe.\n')
         f.write('// [lat, lon, klasaBIOME4, nazwa-stanowiska, zbiór]. Epoki: 0k = dziś (potencjał), 6k = środkowy holocen,\n')
@@ -385,7 +387,7 @@ def main():
         f.write('window.BIOME_POLLEN_SRC = "BIOME 6000 v4.2 (PMIP2/BRIDGE): Prentice i in. 2000; Harrison i in. 2001; '
                 'Bigelow i in. 2003; Pickett i in. 2004; Marchant i in. (Am. Płd.); Ni (Chiny); Sutra (Indie). '
                 'Mapowanie do klas BIOME4: portal (v4.2 -> 28 klas).";\n')
-    with open('/home/user/paleoatlas/js/data/biome_meta.js', 'w', encoding='utf-8') as f:
+    with open(ROOT + '/js/data/biome_meta.js', 'w', encoding='utf-8') as f:
         f.write('// Migawki biomów (tools/build_biomes.py): źródła publikowane (Beyer2020/Krapp2021/Barreto2023) + HG-lite >800 ka.\n')
         f.write('window.BIOME_META = ')
         f.write(json.dumps({'epochs': metas,

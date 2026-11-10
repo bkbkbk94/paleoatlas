@@ -15,9 +15,11 @@ import glob, math, os, json
 import shapefile
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 SRC = glob.glob('/tmp/rgi/RGI2000-v7.0-G-06_iceland.shp')[0]
-OUT = '/home/user/paleoatlas/js/data/ice_rgi_isl.js'
+OUT = ROOT + '/js/data/ice_rgi_isl.js'
 TOL = 0.0025        # ~150 m przy 65°N
 MINA = 0.02         # min. pow. części (deg² ≈ 9 km² przy 65°N)
 

@@ -7,7 +7,7 @@
    Epoki: lgm 21,5 ka · mis4 65 ka · mis6 155 ka · eem 125 ka · yd 12,3 ka · now 1 ka
    Wynik: shots/c_<region>_<epoka>.png + stdout-tabela ułamków px lodu (krok 4 px, alfa>16)
    ============================================================================ */
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -32,9 +32,9 @@ const EPOCHS = [
 ];
 
 (async () => {
-  const server = spawn('python3', ['-m', 'http.server', '8385', '--bind', '127.0.0.1'], { cwd: '/home/user/paleoatlas' });
+  const server = spawn('python3', ['-m', 'http.server', '8385', '--bind', '127.0.0.1'], { cwd: require('path').resolve(__dirname, '..') });
   await sleep(1200);
-  const browser = await puppeteer.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const browser = await puppeteer.launch({ executablePath: process.env.PA_CHROME || '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 760 });

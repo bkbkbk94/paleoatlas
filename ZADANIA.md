@@ -1,4 +1,4 @@
-# PaleoAtlas — lista „co jest do zrobienia" (stan na 2026-08-03)
+# PaleoAtlas — lista „co jest do zrobienia" (stan na 2026-11-10)
 
 Trwały rejestr zadań produktu. Odniesienia: ocena wartości → `AUDYT_PRODUKTOWY.md`,
 strategia/kolejka → `AUDYT_PM.md`, rynki i koszty → `AUDYT_KONKURENCJA_KOSZTY.md`.
@@ -32,12 +32,12 @@ tego, co blisko — poniższa lista liczy się pierwsza.
 | # | Zadanie | Nakład | Zależność | Status |
 |---|---|---|---|---|
 | P0.1 | Stały publiczny URL (deploy statyczny; inicjal metryk bez ciastek z agregatów hostera) | 0,5 dnia + konto | **D1** | ⏳ |
-| P0.2 | Pakiet znajdowalności: meta description, OG (tytuł/opis/obraz 1200×630 render z atlasa), theme-color, `manifest.webmanifest` + ikona 🦣 192/512 | ~0,3 dnia | — | ⬜ |
-| P0.3 | CSS mobile: input/select ≥16 px (koniec autozoomu iOS) + rozplątanie kolizji karta fazy × kontrolki warstw ≤400 px | ~0,3 dnia | — | ⬜ |
-| P0.4 | LICENSE: kod MIT lub CC0 + treści CC-BY-4.0 + wiersz w „O danych" + nota prywatności przy przełączniku podkładów Esri/OSM | ~0,2 dnia | **D2** | ⏳ (część noty prywatności bez zależności) |
-| P0.5 | `prefers-reduced-motion` (media-query) + `:focus-visible` (outline) | ~0,2 dnia | — | ⬜ |
-| P0.6 | RUNBOOK.md (1 str.: start serwera, rebuild paczki offline, deploy, gdzie źródła) | ~0,2 dnia | — | ⬜ |
-| P0.7 | Po 2–6: `python3 tools/build_offline_pack.py` + pełna bateria 6 suit (364 asercje) + changelog + tag `v1.0` | ~0,3 dnia | P0.2–6 | ⬜ |
+| P0.2 | Pakiet znajdowalności: meta description, OG (tytuł/opis/obraz 1200×630 render z atlasu), theme-color, `manifest.webmanifest` + ikona 192/512 | ~0,3 dnia | — | ✅ 2026-11-10 — ikona rysowana z `assets/icon.svg` (emoji nie ma w każdym systemie), `tools/build_brand_assets.js`; `og:url`/canonical czekają na **D1** |
+| P0.3 | CSS mobile: input/select ≥16 px (koniec autozoomu iOS) + rozplątanie kolizji karta fazy × kontrolki warstw ≤400 px | ~0,3 dnia | — | ✅ 2026-11-10 (testy M11.1–M11.2) |
+| P0.4 | LICENSE: kod MIT lub CC0 + treści CC-BY-4.0 + wiersz w „O danych" + nota prywatności przy przełączniku podkładów Esri/OSM | ~0,2 dnia | **D2** | 🛠 nota prywatności i wiersz „Podkład" ✅, **LICENSE czeka na D2** (nazwisko/inicjał do stopki) |
+| P0.5 | `prefers-reduced-motion` (media-query) + `:focus-visible` (outline) | ~0,2 dnia | — | ✅ 2026-11-10 — przy okazji naprawiony błąd: preferencja była booleanem i nigdy nie działała (test 10.14) |
+| P0.6 | RUNBOOK.md (1 str.: start serwera, rebuild paczki offline, deploy, gdzie źródła) | ~0,2 dnia | — | ✅ 2026-11-10 (RUNBOOK.md + `tools/run_tests.sh` + `tools/requirements.txt`) |
+| P0.7 | Po 2–6: `python3 tools/build_offline_pack.py` + pełna bateria suit (380 asercji) + changelog + tag `v1.0` | ~0,3 dnia | P0.2–6 | 🛠 paczka + bateria + changelog ✅ (2026-11-10); **tag `v1.0` czeka na D1/D2** |
 
 ## P1 — pierwsze wrażenie i cytowalność (po v1.0)
 
@@ -47,8 +47,8 @@ tego, co blisko — poniższa lista liczy się pierwsza.
 | P1.2 | „Wersja danych + data buildu" w „O danych" („wolno cytować jak: …") | ~0,2 dnia | ⬜ |
 | P1.3 | „Kopiuj cytowanie" przy warstwach (1 klik, format z DOI) | ~0,3 dnia | ⬜ |
 | P1.4 | Stany błędów podkładów: „Podkład wymaga internetu" + graceful zniknięcie | ~0,2 dnia | ⬜ |
-| P1.5 | A11y pass cz. 1: aria-etykiety kontrolek, role=tablist, skip-link „ominij mapę → lista stanowisk", klawiatura kontrolki warstw | ~0,5 dnia | ⬜ |
-| P1.6 | Touch targets ≥44 px na mobile (zoom Leafleta, przyciski paneli) | ~0,2 dnia | ⬜ |
+| P1.5 | A11y pass cz. 1: aria-etykiety kontrolek, role=tablist, skip-link „omiń mapę → lista stanowisk", klawiatura kontrolki warstw | ~0,5 dnia | ✅ 2026-11-10 — aria-current/pressed/expanded, `role=button`+Enter w legendzie i wynikach, skip-link, `<noscript>`; `role=tablist` nie dotyczy (nawigacja to linki widoków, nie taby) |
+| P1.6 | Touch targets ≥44 px na mobile (zoom Leafleta, przyciski paneli) | ~0,2 dnia | 🛠 2026-11-10: nagłówek legendy 40 px, przycisk osi 40 px, pasek karty fazy 44 px; **kontrolki zoomu Leafleta nadal 26 px** (B7) |
 | P1.7 | Rozwahywanie: widoczny reset filtrów stanowisk na mobile | ~0,1 dnia | ⬜ |
 
 ## P2 — zasięg i forma (mies. 2–3)
@@ -94,9 +94,9 @@ klasyczne mapy Scotese (niestandardowa licencja non-commercial), wszystko co bez
 
 | # | Zadanie | Nakład | Zależność | Status |
 |---|---|---|---|---|
-| T0.1 | **git init + repo GitHub** — dziś repo to katalog na jednym hoście; rollback i kopie tylko w snapshotach | ~0,2 dnia | razem z **D1** (hosting CF/GH i tak wymaga repo) | ⏳ D1 |
-| T0.2 | **Minimalny CI** (GitHub Actions: `node --check js/*.js` + suity na runnerze z chromium — suity startują serwer same) | ~0,5 dnia | po T0.1; **przed P4** (języki/apki = więcej permutacji regresji) | ⏳ D1 |
-| T1.1 | `tools/requirements.txt` z pinami (numpy, shapely, pyshp, netCDF4, pyproj, Pillow, opencv-python) + nota w RUNBOOK | ~0,1 dnia | — | ⬜ |
+| T0.1 | **repo GitHub + git flow** (dziś: klon `bkbkbk96/paleoatlas`; rollback i kopie w historii) | ~0,2 dnia | razem z **D1** | ✅ repo istnieje; **publiczność i hosting nadal D1** |
+| T0.2 | **Minimalny CI** (GitHub Actions: `node --check js/*.js` + suity na runnerze z chromium — suity startują serwer same) | ~0,5 dnia | po T0.1; **przed P4** (języki/apki = więcej permutacji regresji) | 🛠 2026-11-10: portability gotowe — suity i buildery bez zaszytych ścieżek (`PA_CHROME`/`PA_PUPPETEER`/`PA_BIODATA`), `tools/run_tests.sh` = jedna komenda; **został plik workflow** |
+| T1.1 | `tools/requirements.txt` z pinami (numpy, shapely, pyshp, netCDF4, pyproj, Pillow, opencv-python) + nota w RUNBOOK | ~0,1 dnia | — | ✅ 2026-11-10 |
 | T1.2 | `tools/fetch_biodata.sh`: sumy sha256 przy pobieraniu (dziś wget bez weryfikacji ~3 GB) | ~0,2 dnia | przy następnym pełnym fetch | ⬜ |
 | T1.3 | Jedna współdzielona definicja „duplikatu" mapa↔globus (dziś: `isDupe` po `rola` vs globus po `duplikat_patrz` — kruchy niezmiennik) + test | ~0,1 dnia | — | ⬜ |
 | T1.5 | Suita-preflight: każda suita sprawdza wolne miejsce w /tmp na starcie (lekcja „fałszywych zwisów") | ~0,1 dnia | przy najbliższej edycji suit | ⬜ |
@@ -107,6 +107,21 @@ klasyczne mapy Scotese (niestandardowa licencja non-commercial), wszystko co bez
 | T2.4 | Oznaczyć scratch w `/home/user/pptest` (README-nota: poza 7 suitami = diagnostyka, nie regresja) | ~0,05 dnia | — | ⬜ |
 
 **Werdykt audytu dev:** kod 8/10, proces 3/10 — domknąć T0.1+T0.2 przy bramce v1.0, T2.1 przed P3/P4.
+
+## NOWE (z sesji 2026-11-10 — wykryte przy pracy, nie z audytów)
+
+| # | Zadanie | Nakład | Uwagi | Status |
+|---|---|---|---|---|
+| B1 | **Regresja „pyłek OFF → zmiana epoki → zoom"** (`TypeError … _animatingZoom`) | — | naprawione strażnikiem `_map` + stała asercja 10.11 | ✅ |
+| B2 | **Martwa asercja rastra biomów** (1.9 liczyła „svg path", a warstwa to `<img>`) | — | teraz sprawdza `<img>` + `naturalWidth` | ✅ |
+| B3 | **Hermetyczność baterii**: szum kafelków ≠ błąd, ale **404 dla własnych zasobów = błąd** | — | warunek CI bez internetu: `1.1b` / `M7.2b` | ✅ |
+| B4 | **`prefers-reduced-motion` nigdy nie działał** (`!!` → boolean zamiast `MediaQueryList`) | — | naprawione; reaguje też na zmianę preferencji w trakcie sesji | ✅ |
+| B5 | **Nota prywatności zasłaniała kartę fazy** na telefonie (doklejona do kontenera, nie do listy warstw) | — | nota tylko w rozwiniętej kontrolce | ✅ |
+| B6 | **Buildery wymagały Pythona 3.12** (zagnieżdżone cudzysłowy w f-stringach) | 0,1 dnia | poprawione do 3.11 (`check_biomes.py`) | ✅ |
+| B7 | **Kontrolki zoomu Leafleta 26 px** na telefonie (poniżej 44 px) | 0,1 dnia | podnieść razem z testem dotykowym; uwaga na kolizję z kartą fazy | ⬜ |
+| B8 | **Wersja danych + data buildu** w „O danych" (P1.2) | 0,2 dnia | warunek cytowania; potrzebna decyzja: plik `js/data/BUILD` vs `git describe` | ⬜ |
+| B9 | **`og:url` + canonical + `sitemap.xml`** | 0,1 dnia | po **D1** | ⏳ D1 |
+| B10 | **Perf P.1** (2. przejście ≤65% czasu 1.) bywa 65–68% na software-canvas | 0,3 dnia | najpierw pomiar na sprzęcie z GPU, potem próg albo optymalizacja | ⬜ |
 
 ## 🔒 Zamrożone (dyscyplina non-profit — nie robimy)
 

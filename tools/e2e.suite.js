@@ -1,5 +1,5 @@
 /* PaleoAtlas — pełny zestaw testów E2E v2 (Chromium headless) */
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
@@ -10,11 +10,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
   const server = spawn('python3', ['-m', 'http.server', '8333', '--bind', '127.0.0.1'],
-    { cwd: '/home/user/paleoatlas', stdio: 'ignore' });
+    { cwd: require('path').resolve(__dirname, '..'), stdio: 'ignore' });
   await sleep(1500);
 
   const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/chromium',
+    executablePath: process.env.PA_CHROME || '/usr/bin/chromium',
     headless: true,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--force-device-scale-factor=1']
   });
@@ -32,12 +32,29 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1680, height: 1050 });
-    const jsErrors = [];
-    page.on('console', m => { if (m.type() === 'error') jsErrors.push(m.text()); });
+    /* Błędy dzielimy na DWIE klasy (od 2026-11):
+       • jsErrors   — błędy aplikacji i zasobów własnych → zawsze porażka,
+       • netNoise   — kafelki Esri/OSM/OTM przy braku internetu (środowisko CI bez sieci) → raport,
+       • ownBroken  — odpowiedzi ≥400 dla ZASOBÓW WŁASNYCH (same-origin) → porażka (po to,
+                      by „szum kafelków" nie ukrył nam zepsutego pliku danych).
+       Dzięki temu bateria jest hermetyczna: zielona zarówno z internetem, jak i bez. */
+    const ORIGIN = 'http://127.0.0.1:8333';
+    const jsErrors = [], netNoise = [], ownBroken = [];
+    const isTileNoise = t => /Failed to load resource/i.test(t)
+      && /net::ERR_(CONNECTION|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|ADDRESS_UNREACHABLE|TIMED_OUT|CACHE_MISS|EMPTY_RESPONSE|SSL)/i.test(t);
+    page.on('console', m => {
+      if (m.type() !== 'error') return;
+      const t = m.text();
+      (isTileNoise(t) ? netNoise : jsErrors).push(t);
+    });
     page.on('pageerror', e => jsErrors.push('PAGEERROR: ' + e.message));
     page.on('requestfailed', r => {
       const u = r.url();
-      if (!/tile|arcgis|openstreet|opentopo|favicon/i.test(u)) jsErrors.push('REQFAIL: ' + u);
+      if (/tile|arcgis|openstreet|opentopo|favicon/i.test(u)) return;
+      jsErrors.push('REQFAIL: ' + u);
+    });
+    page.on('response', r => {
+      if (r.url().startsWith(ORIGIN) && r.status() >= 400) ownBroken.push(r.status() + ' ' + r.url());
     });
 
     const hp = sel => page.evaluate(s => document.querySelectorAll(s).length, sel);
@@ -64,6 +81,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await page.goto(URL, { waitUntil: 'networkidle2', timeout: 60000 });
     await sleep(1800);
     check('1.1 strona wstaje bez błędów JS', jsErrors.length === 0, jsErrors.join(' | ').slice(0, 300));
+    check('1.1b zero odpowiedzi ≥400 dla zasobów własnych (dane/CSS/ikony)', ownBroken.length === 0, ownBroken.slice(0, 4).join(' | '));
     check('1.2 mapa istnieje', await hp('#map .leaflet-pane') > 0);
     check('1.3 oś czasu: 19 segmentów (17 faz + 2 głębokie)', await hp('#tl-track .tl-seg') === 19, await hp('#tl-track .tl-seg'));
     check('1.4 legenda kultur niepusta', await hp('#legend-cultures .lc') > 0, await hp('#legend-cultures .lc'));
@@ -71,7 +89,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     check('1.6 start ≈ 95 tys. lat temu', (await txt('#tl-year')).includes('95'), await txt('#tl-year'));
     check('1.7 lądy świata narysowane (paleo)', (await painted('landPane')) > 0.10, await painted('landPane'));
     check('1.8 duch wybrzeża widoczny', (await painted('ghostPane')) > 0.0005, await painted('ghostPane'));
-    check('1.9 biom kontynentu narysowany', await paths('biomePane') >= 1, await paths('biomePane'));
+    /* UWAGA: warstwa biomów to NIE wektory, a rastrowy L.imageOverlay (PNG 720×360) —
+       poprzednia asercja liczyła „svg path" w pane i była martwa (zawsze 0), więc nie
+       mogła wykryć ani zniknięcia, ani zepsucia się rastra. Sprawdzamy faktyczne <img>. */
+    const biomeImg = await page.evaluate(() => {
+      const im = window.__PA.map.getPane('biomePane').querySelector('img');
+      return im ? { ok: im.complete && im.naturalWidth > 0, w: im.naturalWidth, src: im.src.slice(-14) } : null;
+    });
+    check('1.9 biom kontynentu narysowany (raster PNG załadowany)', !!biomeImg && biomeImg.ok,
+      biomeImg ? biomeImg.w + ' px · ' + biomeImg.src : 'brak <img> w biomePane');
     check('1.10 lądolód widoczny (env: MIS 5b — globalny poligon Q19 namalowany na canvasie)',
       (await painted('icePane')) > 0.01 && /Batchelor|MIS 5/.test(await txt('#phase-icesrc')), (await painted('icePane')) + ' | ' + (await txt('#phase-icesrc')));
     check('1.11 kontrola warstw renderuje ikonę', await page.evaluate(() => {
@@ -343,6 +369,239 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     check('9.18 okno piętra: 750 tys. → MIS 19; 940 tys. → MIS 24 (kompozyt)', envChk.t750.includes('MIS 19') && envChk.t940.includes('MIS 24'), envChk.t750 + ' || ' + envChk.t940);
     check('9.19 wczesny plejstocen: ≥4 stadiały-analogi z etykietą „analog” (uż. Matuyama+Gauss)',
       envChk.proxy >= 5 && envChk.analog18 && envChk.q1190 && envChk.q2150, JSON.stringify(envChk.proxy));
+
+    /* ========== 10. BRAMKA v1.0: ZNAJDOWALNOŚĆ, DOSTĘPNOŚĆ, REGRESJE ========== */
+    await page.evaluate(() => { location.hash = 'mapa'; });
+    await sleep(400);
+
+    /* 10.1–10.3 pakiet znajdowalności (P0.2): meta/OG/canonical-nie, manifest, ikony, obraz OG */
+    const head = await page.evaluate(() => {
+      const meta = n => (document.querySelector('meta[name="' + n + '"]') || {}).content || '';
+      const prop = n => (document.querySelector('meta[property="' + n + '"]') || {}).content || '';
+      const link = r => (document.querySelector('link[rel="' + r + '"]') || {}).href || '';
+      return {
+        desc: meta('description'), theme: meta('theme-color'), colorScheme: meta('color-scheme'),
+        ogTitle: prop('og:title'), ogDesc: prop('og:description'), ogImage: prop('og:image'),
+        ogW: prop('og:image:width'), ogH: prop('og:image:height'), ogAlt: prop('og:image:alt'),
+        tw: document.querySelector('meta[name="twitter:card"]') ? document.querySelector('meta[name="twitter:card"]').content : '',
+        manifest: link('manifest'), apple: link('apple-touch-icon'),
+        canonical: link('canonical'), ogUrl: prop('og:url')
+      };
+    });
+    check('10.1 meta description + theme-color + color-scheme', head.desc.length > 80 && !!head.theme && !!head.colorScheme,
+      (head.desc || '').slice(0, 60) + '…');
+    check('10.2 OG komplet (title/description/image 1200×630/alt) + twitter:card',
+      !!head.ogTitle && !!head.ogDesc && /og-image\.png$/.test(head.ogImage) && head.ogW === '1200' && head.ogH === '630' && !!head.ogAlt && head.tw === 'summary_large_image',
+      head.ogW + '×' + head.ogH + ' · ' + head.tw);
+    /* adresu publicznego jeszcze nie ma (decyzja D1) — nie deklarujemy og:url/canonical */
+    check('10.3 brak og:url/canonical przed decyzją o hostingu (nie obiecujemy adresu)', !head.ogUrl && !head.canonical);
+
+    const headAssets = await page.evaluate(async () => {
+      const probe = url => new Promise(res => {
+        const i = new Image();
+        i.onload = () => res({ url, ok: true, w: i.naturalWidth, h: i.naturalHeight });
+        i.onerror = () => res({ url, ok: false });
+        i.src = url;
+      });
+      const manifest = (document.querySelector('link[rel="manifest"]') || {}).href;
+      let man = null;
+      try {
+        const r = await fetch(manifest);
+        man = r.ok ? await r.json() : { __status: r.status };
+      } catch (e) { man = { __err: String(e) }; }
+      return {
+        og: await probe((document.querySelector('meta[property="og:image"]') || {}).content),
+        icon192: await probe('assets/icon-192.png'),
+        icon512: await probe('assets/icon-512.png'),
+        icon180: await probe('assets/icon-180.png'),
+        man
+      };
+    });
+    check('10.4 obraz OG wczytuje się jako 1200×630', headAssets.og.ok && headAssets.og.w === 1200 && headAssets.og.h === 630,
+      JSON.stringify(headAssets.og));
+    check('10.5 ikony 192/512/180 istnieją i mają właściwe wymiary',
+      [headAssets.icon192, headAssets.icon512, headAssets.icon180].every(x => x.ok) &&
+      headAssets.icon192.w === 192 && headAssets.icon512.w === 512 && headAssets.icon180.w === 180,
+      [headAssets.icon192, headAssets.icon512, headAssets.icon180].map(x => x.w || 'ERR').join('/'));
+    check('10.6 manifest.webmanifest poprawny (name, start_url, display, ikony 192+512)',
+      !!headAssets.man && !headAssets.man.__err && headAssets.man.lang === 'pl' && headAssets.man.display === 'standalone'
+      && !!headAssets.man.start_url && (headAssets.man.icons || []).some(i => i.sizes === '192x192')
+      && (headAssets.man.icons || []).some(i => i.sizes === '512x512'),
+      JSON.stringify(headAssets.man).slice(0, 180));
+
+    /* 10.7–10.9 dostępność klawiatury i stanu (P0.5 / P1.5) */
+    const skip = await page.evaluate(async () => {
+      const a = document.querySelector('.skip-link');
+      if (!a) return { present: false };
+      a.focus();
+      const st = getComputedStyle(a);
+      const visible = st.top !== '' && parseFloat(st.top) >= 0
+        && document.activeElement === a;
+      a.click();
+      await new Promise(r => setTimeout(r, 120));
+      return { present: true, visible, mainFocused: document.activeElement.id === 'main', main: !!document.getElementById('main') };
+    });
+    check('10.7 skip-link: istnieje, widoczny po fokusie i przenosi do #main',
+      skip.present && skip.visible && skip.mainFocused, JSON.stringify(skip));
+
+    /* fokus klawiatury: Tab do pola szukania → widoczna obwódka (nie „outline: none") */
+    await page.evaluate(() => document.body.focus());
+    let focusedOutline = null, foundSearch = false;
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press('Tab');
+      const st = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el.id !== 'srch-q') return null;
+        const cs = getComputedStyle(el);
+        return { outline: cs.outlineStyle, width: cs.outlineWidth, bd: cs.borderColor };
+      });
+      if (st) { focusedOutline = st; foundSearch = true; break; }
+    }
+    check('10.8 focus-visible działa: Tab do #srch-q daje widoczną obwódkę',
+      foundSearch && focusedOutline.outline !== 'none' && parseFloat(focusedOutline.width) >= 2,
+      foundSearch ? JSON.stringify(focusedOutline) : 'nie dotarto Tabem do #srch-q');
+
+    const aria = await page.evaluate(() => {
+      const byId = id => document.getElementById(id);
+      const lc = document.querySelector('#legend-cultures .lc');
+      const nav = [...document.querySelectorAll('#top nav a')];
+      return {
+        navCurrent: nav.filter(a => a.getAttribute('aria-current') === 'page').map(a => a.dataset.view),
+        paleo: byId('paleo-view').getAttribute('aria-pressed'),
+        biis: /wariant/i.test(byId('britice-var').getAttribute('aria-label') || ''),
+        legendToggle: byId('legend-toggle').getAttribute('aria-expanded'),
+        rowRole: lc ? lc.getAttribute('role') : null, rowTab: lc ? lc.getAttribute('tabindex') : null,
+        qLabel: (byId('srch-q').getAttribute('aria-label') || '').length > 5,
+        selects: [...document.querySelectorAll('#srch-selects select')].every(s => !!s.getAttribute('aria-label')),
+        playLabel: (byId('tl-play').getAttribute('aria-label') || '').length > 5,
+        globeImg: byId('globe-cv').getAttribute('role') === 'img'
+      };
+    });
+    check('10.9 ARIA: aria-current, aria-pressed, aria-expanded, role=button w legendzie, etykiety pól',
+      aria.navCurrent.length === 1 && aria.navCurrent[0] === 'mapa' && aria.paleo === 'true' && aria.biis
+      && aria.legendToggle === 'true' && aria.rowRole === 'button' && aria.rowTab === '0'
+      && aria.qLabel && aria.selects && aria.playLabel && aria.globeImg,
+      JSON.stringify(aria));
+
+    /* 10.10 legendowy wiersz kultury działa z klawiatury (Enter = filtr) */
+    const kbFilter = await page.evaluate(async () => {
+      const lc = document.querySelector('#legend-cultures .lc');
+      if (!lc) return { skip: true };
+      lc.focus();
+      const before = document.getElementById('srch-kultura').value;
+      lc.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(r => setTimeout(r, 120));
+      const after = document.getElementById('srch-kultura').value;
+      document.getElementById('srch-clear').click();
+      await new Promise(r => setTimeout(r, 120));
+      return { before, after, cleared: document.getElementById('srch-kultura').value === '' };
+    });
+    check('10.10 wiersz legendy: Enter ustawia filtr kultury, „wyczyść" go zdejmuje',
+      !kbFilter.skip && kbFilter.after !== '' && kbFilter.after !== kbFilter.before && kbFilter.cleared,
+      JSON.stringify(kbFilter));
+    await page.evaluate(() => window.__PA.clearFilters());
+
+    /* 10.11 REGRESJA (znaleziona 2026-11): pyłek OFF → zmiana epoki → zoom.
+       Renderer canvas pyłka powstawał w odpiętej grupie i każdy zoom kończył się
+       „TypeError: … reading '_animatingZoom'". */
+    /* Odtwarzamy DOKŁADNIE stan z raportu: warstwa pyłka wyłączona, w bieżącej sesji
+       nie było jeszcze renderera pyłka (świeży start przy epoce bez kotwic), a potem
+       użytkownik wchodzi w epokę z kotwicami — markery powstają w grupie odpiętej
+       od mapy, więc L.canvas nie dostaje _map. Przed poprawką każdy zoom rzucał
+       TypeError; teraz strażnik w refreshCanvasRenderers to pomija. */
+    const pollenOff = await page.evaluate(async () => {
+      const PA = window.__PA;
+      const labels = [...document.querySelectorAll('.leaflet-control-layers label')];
+      const l = labels.find(x => /Kotwice pyłkowe/.test(x.textContent));
+      if (!l) return { skip: true };
+      if (PA.map.hasLayer(PA.group.pollen)) l.querySelector('input').click();   // OFF
+      PA.group.pollen.clearLayers();
+      PA.BIOME.pollenR = null;                                                 // „świeża" sesja
+      PA.setSlider(PA.bpToSlider(6000));                                       // epoka 6k = kotwice
+      await new Promise(r => setTimeout(r, 900));
+      return {
+        present: !!PA.BIOME.pollenR,
+        detached: !!(PA.BIOME.pollenR && !PA.BIOME.pollenR._map),
+        n: PA.group.pollen.getLayers().length
+      };
+    });
+    const beforeRegress = jsErrors.length;
+    await page.evaluate(() => window.__PA.map.setZoom(5, { animate: false }));
+    await sleep(600);
+    await page.evaluate(() => window.__PA.map.setZoom(4, { animate: false }));
+    await sleep(600);
+    check('10.11 regresja: pyłek OFF → zmiana epoki → zoom bez błędu JS',
+      !pollenOff.skip && pollenOff.present && pollenOff.detached && jsErrors.length === beforeRegress,
+      JSON.stringify(pollenOff) + ' · nowe błędy: ' + (jsErrors.length - beforeRegress));
+    /* przywracamy warstwę pyłka (kolejne asercje i zrzuty) */
+    await page.evaluate(() => {
+      const labels = [...document.querySelectorAll('.leaflet-control-layers label')];
+      const l = labels.find(x => /Kotwice pyłkowe/.test(x.textContent));
+      if (l && !window.__PA.map.hasLayer(window.__PA.group.pollen)) l.querySelector('input').click();
+      window.__PA.setSlider(window.__PA.bpToSlider(95000));
+    });
+    await sleep(700);
+
+    /* 10.12 nota prywatności przy przełączniku podkładów (P0.4) */
+    const privacy = await page.evaluate(() => {
+      const n = document.querySelector('.leaflet-control-layers .tile-note');
+      return n ? n.textContent : '';
+    });
+    check('10.12 nota prywatności przy podkładach (Esri/OSM/OTM = ich serwery, brak ciastek)',
+      /Esri/.test(privacy) && /OSM/.test(privacy) && /ciastek/i.test(privacy), privacy.slice(0, 110));
+
+    /* 10.13 spójność treści „O danych": nie ma już nieaktualnego schematu biomów */
+    const aboutTxt = await page.evaluate(() => (document.getElementById('about-content') || {}).textContent || '');
+    check('10.13 „O danych" nie deklaruje schematu tam, gdzie są dane (biomy: brak wiersza „SCHEMAT roboczy")',
+      !/Biomy kontynentu.*SCHEMAT roboczy/s.test(aboutTxt) && /BIOME 6000/.test(aboutTxt));
+
+    /* 10.14 prefers-reduced-motion: nowa karta z emulowaną preferencją */
+    const rm = await browser.newPage();
+    const rmErr = [];
+    rm.on('pageerror', e => rmErr.push(e.message));
+    /* Uwaga: w tej kompilacji Chromium MediaQueryList utworzony przed włączeniem
+       emulacji nie odświeża .matches, dlatego podstawiamy matchMedia PRZED skryptami
+       strony — sprawdzamy realną ścieżkę kodu (REDUCED_MOTION → opcje Leafleta). */
+    await rm.evaluateOnNewDocument(() => {
+      const orig = window.matchMedia.bind(window);
+      window.matchMedia = q => {
+        if (String(q).includes('prefers-reduced-motion')) {
+          return { media: q, matches: true, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} };
+        }
+        return orig(q);
+      };
+    });
+    await rm.setViewport({ width: 1280, height: 860 });
+    await rm.goto(URL, { waitUntil: 'networkidle2', timeout: 60000 });
+    await sleep(1500);
+    /* klikamy „Przybliż na mapie" (to ścieżka flyToPoint) i mierzymy PO odczekaniu —
+       animacja flyTo dochodzi asynchronicznie, więc pomiar „od razu" nic nie dowodzi */
+    const rmBefore = await rm.evaluate(() => {
+      const PA = window.__PA;
+      PA.openSiteById('PM-030');
+      const c = PA.map.getCenter();
+      const before = { lat: c.lat, lng: c.lng, zoom: PA.map.getZoom() };
+      const link = document.getElementById('flyto');
+      if (link) link.click();
+      return { before, diag: PA.rmDiag(), reduced: PA.reducedMotion(), zoomAnim: PA.map.options.zoomAnimation, fadeAnim: PA.map.options.fadeAnimation };
+    });
+    await sleep(900);
+    const rmState = await rm.evaluate(b => {
+      const PA = window.__PA;
+      return {
+        diag: b.diag, reduced: b.reduced, zoomAnim: b.zoomAnim, fadeAnim: b.fadeAnim,
+        moved: PA.map.getCenter().distanceTo(L.latLng(b.before.lat, b.before.lng)) > 100,
+        zoomChanged: PA.map.getZoom() !== b.before.zoom,
+        zoom: PA.map.getZoom(),
+        cssTransition: getComputedStyle(document.querySelector('.leaflet-zoom-animated') || document.body).transitionDuration
+      };
+    }, rmBefore);
+    await sleep(400);
+    check('10.14 prefers-reduced-motion: wyłączony zoom/fade mapy i skok „Przybliż na mapie" zamiast lotu',
+      rmState.reduced === true && rmState.zoomAnim === false && rmState.fadeAnim === false
+      && rmState.moved === true && rmState.zoomChanged === true && rmErr.length === 0,
+      JSON.stringify(rmState) + ' · błędy: ' + rmErr.length);
+    await rm.close();
 
     await shot('10_final');
   } catch (e) {

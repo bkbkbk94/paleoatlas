@@ -40,14 +40,14 @@ function handleFile(path, extract, reinsert, eachPoly) {
 
 /* --- ice_quat.js: window.ICE_QUAT = {...}; */
 handleFile(
-  '/home/user/paleoatlas/js/data/ice_quat.js',
+  require('path').resolve(__dirname, '..', 'js/data/ice_quat.js'),
   /window\.ICE_QUAT = (\{[\s\S]*\});\s*$/m,
   (srcTxt, m, json) => srcTxt.replace(m[0], 'window.ICE_QUAT = ' + JSON.stringify(json) + ';')
 );
 
 /* --- ice_dated.js: const D1 = {...}; wewnątrz IIFE */
 handleFile(
-  '/home/user/paleoatlas/js/data/ice_dated.js',
+  require('path').resolve(__dirname, '..', 'js/data/ice_dated.js'),
   /const D1 = (\{[\s\S]*?\});/,
   (srcTxt, m, json) => srcTxt.replace(m[0], 'const D1 = ' + JSON.stringify(json) + ';')
 );

@@ -26,7 +26,7 @@ from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
 
 ROOT = '/tmp/britice/emp/Data S3 BRITICE CHRONO empirical reconstruction GIS data'
-OUT = '/home/user/paleoatlas/js/data/ice_britice.js'
+OUT = ROOT + '/js/data/ice_britice.js'
 CLIP = box(-13.0, 48.0, 11.4, 61.4)
 TOL = 0.06          # tolerancja upraszczania (stopnie)
 MINA = 0.008        # min. powierzchnia części (deg²)

@@ -16,11 +16,13 @@ rozbieżności oraz zagnieżdżenie zbiorów pomiędzy poziomami.
 """
 import numpy as np, json, time, os, gc, sys
 import cv2
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 def log(*a):
     print(*a); sys.stdout.flush()
 
 BIN = '/tmp/icedata/etopo2/ETOPO2v2c_i2_MSB.bin'
-OUT = '/home/user/paleoatlas/js/data/shelves.js'
+OUT = ROOT + '/js/data/shelves.js'
 NROWS, NCOLS = 5400, 10800          # 2 min łuku, komórki; wiersz 0 = południe (-90)
 DLAT = 180.0 / NROWS                # 1/30 stopnia
 DLON = 360.0 / NCOLS

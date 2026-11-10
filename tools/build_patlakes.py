@@ -9,9 +9,11 @@ import json, io, os
 import shapefile
 from pyproj import Transformer
 from shapely.geometry import Polygon
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 RD = '/tmp/psupp/Supplementary data/Shapefiles/Reconstruction'
-OUT = '/home/user/paleoatlas/js/data/ice_patlakes.js'
+OUT = ROOT + '/js/data/ice_patlakes.js'
 TR = Transformer.from_crs(32718, 4326, always_xy=True)   # UTM 18S → WGS84
 PHASES = [35, 30, 25, 20, 15, 13, 10]
 MIN_KM2 = 40.0        # pomijamy plamy mniejsze od progu — czytelność przy zoomach globalnych

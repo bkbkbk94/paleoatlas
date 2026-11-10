@@ -12,12 +12,13 @@ Weryfikuje:
 Wyjście: JSON na stdout + js/data/../biome_report.json (workspace root paleoatlas/).
 """
 import json, os, sys
+from pathlib import Path
 import numpy as np
 from PIL import Image
 import netCDF4 as nc
 
-ROOT = '/home/user/paleoatlas'
-DATA = '/home/user/biodata'
+ROOT = str(Path(__file__).resolve().parent.parent)
+DATA = os.environ.get('PA_BIODATA', os.path.abspath(os.path.join(ROOT, '..', 'biodata')))
 NLON, NLAT = 720, 360
 LAT0, DLAT = -89.75, 0.5
 LON0, DLON = -179.75, 0.5
@@ -190,7 +191,7 @@ print('  HG-lite vs Krapp (0 ka) per region:', per)
 r0P = {regfr: fracs(k0, regfr) for regfr in ['Polska', 'Australia SE', 'Midwest USA', 'Europa Zach.']}
 rep['regions']['0_krapp_raw'] = r0P
 check('G dziś Polska: lasy >=40%', (r0P['Polska'][grp_coolf] + r0P['Polska'].get('tajga', 0.0) + r0P['Polska'][grp_trop]) >= 0.4, 'coolf=%.3f tajga=%.3f' % (r0P['Polska'][grp_coolf], r0P['Polska'].get('tajga', 0)))
-check('H dziś Australia SE: pustynia <15%', r0P['Australia SE'][grp_desert] < 0.15, f'desert={r0P['Australia SE'][grp_desert]}')
+check('H dziś Australia SE: pustynia <15%', r0P['Australia SE'][grp_desert] < 0.15, f"desert={r0P['Australia SE'][grp_desert]}")
 
 # 3300 ka — Antarktyda 28, Grenlandia bez lądolodu pełnego (raport), Sahara nadal pusta
 g3300 = grids[3300]
@@ -204,13 +205,13 @@ check('K 3300 ka: Amazonia las tropikalny >=25%', rA3[grp_trop] >= 0.25, f'trop=
 # sanity klas
 bad = []
 for e in META['epochs']:
-    a = np.array(Image.open(f'{ROOT}/js/data/biome/{e['file']}'))
+    a = np.array(Image.open(f"{ROOT}/js/data/biome/{e['file']}"))
     if a.min() < 0 or a.max() > 28:
         bad.append(e['file'])
 check('L wszystkie migawki: klasy w 0..28', not bad, f'złe: %s' % bad[:5] if bad else str(len(META['epochs'])) + ' plików OK')
 
 n_ok = sum(1 for a in rep['asserts'] if a['ok'])
-rep['summary'] = f'{n_ok}/{len(rep['asserts'])} assertów OK'
+rep['summary'] = f"{n_ok}/{len(rep['asserts'])} assertów OK"
 print('PODSUMOWANIE:', rep['summary'])
 with open(f'{ROOT}/biome_report.json', 'w', encoding='utf-8') as fh:
     json.dump(rep, fh, ensure_ascii=False, indent=1)

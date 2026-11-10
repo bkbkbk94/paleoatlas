@@ -7,16 +7,19 @@ build_ice_dated.py — DATED-1 (Hughes i in. 2016, Boreas; PANGAEA 10.1594/PANGA
 """
 import shapefile, json, numpy as np
 from pyproj import Transformer
+import os
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 SRC = '/tmp/icedata/dated1/DATED1 TimeSlices shp/'
-OUT = '/home/user/paleoatlas/js/data/ice_dated.js'
+OUT = ROOT + '/js/data/ice_dated.js'
 SIMPL_TOL = 0.055
 MIN_AREA_MKM2 = 0.008      # izolowane pokrywy < 8 tys. km2 pomijamy
 
 tr = Transformer.from_crs("+proj=laea +lat_0=90 +lon_0=0 +datum=WGS84 +units=m", "EPSG:4326", always_xy=True)
 
 # ---- linie PL użytkownika (z meta.js) ---------------------------------------
-_m = open('/home/user/paleoatlas/js/data/meta.js', encoding='utf-8').read()
+_m = open(ROOT + '/js/data/meta.js', encoding='utf-8').read()
 META = json.loads(_m[_m.index('=') + 1:_m.rindex(';')])
 LINES = {f['id']: [[p['lat'], p['lon']] for p in (f.get('linia_pl') or [])] for f in META['fazy']}
 
@@ -176,5 +179,4 @@ Object.keys(D1).forEach(k => {
 });
 })();
 ''')
-import os
 print('zapisano', OUT, '%.1f KB' % (os.path.getsize(OUT) / 1024))

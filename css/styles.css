@@ -23,6 +23,24 @@ body {
 }
 a { color: var(--accent); }
 
+/* ---------- dostępność: widoczny fokus klawiatury + skip-link (P0.5 / P1.5) ----------
+   Wcześniej jedyny „focus" w portalu był wyłączany (outline: none na #srch-q), więc
+   użytkownik klawiatury nie widział, gdzie jest. Teraz fokus jest zawsze widoczny —
+   i tylko dla klawiatury (:focus-visible), żeby nie rysować obwódek po kliknięciach. */
+:focus-visible {
+  outline: 2px solid #ffd98a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.skip-link {
+  position: absolute; left: 8px; top: -60px; z-index: 3000;
+  background: var(--panel-solid); color: var(--ink);
+  border: 1px solid var(--accent); border-radius: 8px;
+  padding: .5rem .8rem; font-size: .82rem; text-decoration: none;
+}
+.skip-link:focus { top: 8px; }
+#main:focus { outline: none; }
+
 /* ---------------- nagłówek ---------------- */
 #top {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -56,6 +74,14 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .leaflet-control-layers label { color: var(--ink); font-size: .8rem; }
 .leaflet-control-attribution { background: rgba(20, 17, 12, .75) !important; color: #8d8474 !important; }
 .leaflet-control-attribution a { color: #a99878 !important; }
+.tile-note {
+  max-width: 232px; margin-top: .45rem; padding-top: .4rem;
+  border-top: 1px solid var(--line);
+  font-size: .62rem; line-height: 1.4; color: var(--ink-dim);
+}
+.tile-note code { font-size: .6rem; color: var(--accent-2); }
+/* nota jest częścią rozwiniętej kontrolki — przy zwiniętej ma zniknąć razem z listą */
+.leaflet-control-layers:not(.leaflet-control-layers-expanded) .tile-note { display: none; }
 .leaflet-bar a { background: var(--panel-solid) !important; color: var(--ink) !important; border-color: var(--line) !important; }
 
 /* panel boczny — karta stanowiska */
@@ -169,7 +195,8 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   width: 100%; padding: .4rem .6rem; border-radius: 8px; font-size: .78rem;
   border: 1px solid var(--line); background: #0f0d0a; color: var(--ink);
 }
-#srch-q:focus { outline: none; border-color: var(--accent); }
+#srch-q:focus { border-color: var(--accent); }
+#srch-q:focus-visible { outline: 2px solid #ffd98a; outline-offset: 1px; }
 #srch-selects { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; margin-top: .4rem; }
 #srch-selects select {
   width: 100%; font-size: .68rem; padding: .28rem .3rem; border-radius: 6px;
@@ -327,18 +354,32 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #phasecard { top: 8px; left: 46px; right: 8px; max-width: none; padding: .4rem .65rem; }
   #phase-name { font-size: .8rem; display: inline; }
   #phase-caret { display: inline; float: right; color: var(--accent); font-size: .9rem; margin-top: -.15rem; }
-  #phasecard.closed #phase-sub, #phasecard.closed #phase-sea, #phasecard.closed #paleo-view { display: none; }
+  /* ZWINIĘTA karta = sam pasek tytułu (duży, przewidywalny cel dotyku).
+     Przyciski (paleo, BIIS) to kontrolki szczegółowe — dopiero po rozwinięciu;
+     wcześniej BIIS zostawał widoczny i zajmował środek paska, więc „dotknij karty,
+     żeby rozwinąć" trafiało w przełącznik wariantu (test M2.2). */
+  #phasecard.closed #phase-sub, #phasecard.closed #phase-sea, #phasecard.closed #paleo-view,
+  #phasecard.closed #britice-var { display: none; }
+  #phasecard.closed { min-height: 44px; display: flex; align-items: center; }
   #phasecard.closed { cursor: pointer; }
   #phasecard:not(.closed) { max-height: 52%; overflow-y: auto; }
   #phase-sub { font-size: .7rem; }
 
   /* legenda + szukaj: kompaktowe, NAD osią czasu */
   #legend { left: 8px; bottom: 154px; width: 232px; max-width: 232px; max-height: 38%; }
-  #legend-head { padding: .35rem .55rem; font-size: .68rem; }
+  /* pasek legendy = cel dotyku (≥34 px) — wcześniej 26 px, za mało na palec */
+  #legend-head { padding: .35rem .55rem; font-size: .68rem; min-height: 34px; display: flex; align-items: center; gap: .3rem; }
+  #legend-toggle { min-width: 30px; min-height: 30px; display: inline-flex; align-items: center; justify-content: center; }
   .legend-symbols span { font-size: .64rem; }
   #legend-cultures .lc { font-size: .68rem; }
-  #srch-q { font-size: .72rem; }
+  /* iOS Safari powiększa stronę, gdy pole formularza ma < 16 px — dlatego na telefonie
+     pola wyszukiwania i selecty dostają dokładnie 16 px (P0.3). */
+  #srch-q, #gloss-q, #srch-selects select { font-size: 16px; }
+  #srch-selects select { padding: .3rem .35rem; }
+  #legend { width: 250px; max-width: 250px; }
   #srch-results { max-height: 120px; }
+  .srch-hit { font-size: .78rem; padding: .3rem .35rem; }   /* ~44 px celu dotyku */
+  #legend-cultures .lc { padding: .22rem 0; }
 
   /* panel stanowiska jako dolna szuflada (bottom-sheet) */
   #side {
@@ -364,7 +405,13 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 @media (max-width: 430px) {
   #tl-ruler .mid { display: none; }              /* LGM etykieta znika dopiero na najwęższych */
-  #phasecard { left: 40px; }
+  /* Karta fazy NIE może wchodzić pod kontrolkę warstw (prawy górny róg) ani pod zoom (+/−).
+     Do 430 px: lewy margines za zoomem (40 px), prawy za składaną kontrolką warstw (46 px). */
+  /* prawy margines: 10 px odstępu + 48 px kontrolki warstw + 6 px oddechu = 64 px */
+  #phasecard { left: 40px; right: 64px; }
+  #phasecard:not(.closed) { max-height: 46%; }
+  /* …a po rozwinięciu karty legenda zjeżdża niżej, żeby nie nachodziły na siebie */
+  #legend { max-height: 30%; }
 }
 
 /* grubszy uchwyt suwaka na ekranach dotykowych niezależnie od szerokości */
@@ -423,3 +470,18 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .gtgl.on { background: #3d5a2b; border-color: #6c8f4e; color: #e8f0d8; }
 .gtgl:focus-visible { outline: 2px solid #ffd98a; outline-offset: 1px; }
 @media (max-width: 760px) { .gtgl { font-size: .64rem; padding: .12rem .45rem; } }
+
+/* ---------- prefers-reduced-motion (P0.5) ----------
+   Portal nie ma własnych animacji CSS, ale Leaflet wprowadza przenikanie kafelków
+   i płynny zoom; użytkownik z tą preferencją dostaje stan natychmiastowy.
+   (Programowe loty mapy wyłącza dodatkowo js/app.js: flyToPoint → setView.) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .leaflet-fade-anim .leaflet-tile,
+  .leaflet-zoom-animated { transition: none !important; }
+}

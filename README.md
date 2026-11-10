@@ -21,7 +21,10 @@ Mapa potrzebuje internetu tylko do podkładów kafelkowych (Esri/OSM). Dane port
 
 ```
 paleoatlas/
-├── index.html              # szkielet UI (mapa / Tom I / słownik / o danych)
+├── index.html              # szkielet UI (mapa / Tom I / słownik / o danych) + meta/OG/manifest
+├── manifest.webmanifest    # PWA-lite: nazwa, theme-color, ikony 192/512 (bez service workera)
+├── assets/                 # ikony 192/512/180 + obraz OG 1200×630 (generowane: tools/build_brand_assets.js)
+├── RUNBOOK.md              # 1 strona: podnieś · przetestuj · przebuduj paczkę · wydaj · troubleshooting
 ├── css/styles.css
 ├── js/app.js               # cała logika: oś czasu, warstwy, panele, widoki
 ├── js/data/
@@ -44,6 +47,9 @@ paleoatlas/
 │   └── world_land.js       # ← kontynenty Natural Earth 50m (tryb paleo, domena publiczna)
 ├── vendor/leaflet/         # Leaflet 1.9.4 (lokalnie)
 └── tools/
+    ├── requirements.txt    # pinowane zależności pipeline'u danych (numpy/shapely/pyshp/netCDF4/pyproj/Pillow/cv2)
+    ├── run_tests.sh        # pełna bateria jedną komendą (PA_CHROME / PA_PUPPETEER / PA_STRICT_PERF)
+    ├── build_brand_assets.js # ikony z assets/icon.svg + obraz OG jako zrzut z atlasu (LGM nad Skandynawią)
     ├── build_data.py       # konwerter CSV → JS (stanowiska, meta, słownik, tom; +2 fazy głębokie + milówki)
     ├── build_ice_dated.py  # DATED-1 (shapefiles PANGAEA) → ice_dated.js + splice linii PL
     ├── build_ice_nadi.py   # NADI-1 (shapefiles Zenodo) → ice_nadi.js — podmianka schematu Ameryki Płn.
@@ -423,7 +429,11 @@ Panel **„Szukaj · legenda”** (lewy dolny róg mapy) łączy wyszukiwarkę, 
 ## Testy
 
 Automatyczne zestawy E2E (Chromium headless):
-- **desktop: 84 testy** (`tools/e2e.suite.js`) — start bez błędów, 19 segmentów osi (17 + 2 głębokie),
+- **bateria jedną komendą:** `bash tools/run_tests.sh` (6 suit po kolei, hermetycznie: brak internetu
+  nie czerwieni baterii, ale każda odpowiedź ≥400 dla **własnych** zasobów jest błędem — asercje `1.1b`/`M7.2b`).
+  Ścieżki przeglądarki i puppeteera ustawia się przez `PA_CHROME` / `PA_PUPPETEER` (domyślnie
+  `/usr/bin/chromium` i `/tmp/pptr/node_modules/puppeteer-core`) — to warunek CI (T0.2),
+- **desktop: 99 testów** (`tools/e2e.suite.js`) — start bez błędów, 19 segmentów osi (17 + 2 głębokie),
   9 kamieni milowych ♦, globalna chronologia: ≥45 przekrojów ENV i ≥90 pkt krzywej morza,
   18 kluczy lądolodu Q19 (Batchelor), ewolucja lodu wewnątrz fazy 1 (MIS 20→MIS 16/12),
   splice linii Sanu/Warty w geometrii Q19 (punkty verbatim), DANE_PORTALU dla MIS 8,
@@ -433,12 +443,22 @@ Automatyczne zestawy E2E (Chromium headless):
   filtr kultur, przełącznik paleo, **wyszukiwarka i filtry** (fraza, 4 selecty, duplikat poza indeksem,
   baner karty duplikatu z linkiem do rekordu wiodącego, synchronizacja legenda↔select, kierunek
   lądolodu po polsku bez surowych kodów), Tom I/słownik, brak 404,
-- **mobilne: 28 testów** (`tools/e2e.mobile.suite.js`, 390×844 + dotyk) — **regresja
+  **bramka v1.0 (10.1–10.14):** meta description/theme-color, OG komplet (obraz 1200×630 + alt),
+  brak og:url/canonical przed decyzją o hostingu, ikony 192/512/180, `manifest.webmanifest`,
+  skip-link (Tab → #main), focus-visible na polu szukania, komplet ARIA (aria-current/pressed/
+  expanded, role=button w legendzie), obsługa Entera w legendzie, nota prywatności podkładów,
+  spójność „O danych", brak martwej asercji rastra biomów (1.9 sprawdza faktyczny `<img>`
+  zamiast nieistniejących „svg path"), **regresja pyłku** (pyłek OFF → zmiana epoki → zoom
+  bez TypeError) i **prefers-reduced-motion** (brak zoom/fade, skok zamiast lotu),
+- **mobilne: 37 testów** (`tools/e2e.mobile.suite.js`, 390×844 + dotyk) — **regresja
   antypołudnika** (żaden poligon nie skacze > 170° dł. geogr. — ochrona przed „pasem
   Norwegia–Grenlandia"), karta fazy zwinięta domyślnie i rozwijana dotykiem, legenda
   zwinięta/rozwijana, **wyszukiwarka na dotyk z otwarciem dolnej szuflady**, etykiety
   podziałki bez nakładania, animacja na dotyk, panel stanowiska jako dolna szuflada,
   brak poziomego scrolla,
+  **M11 (bramka v1.0):** pola wyszukiwania i selecty ≥16 px (koniec autozoomu iOS), karta fazy
+  nie wchodzi pod kontrolkę warstw ani zoom (≤430 px), cele dotyku (nagłówek legendy 40 px,
+  przycisk osi 40 px), skip-link z klawiatury (Tab → widoczny, Enter → #main),
   **regresja renderingu lodu na iOS** (lód „znikał całkowicie" — ogromne jednościeżkowe SVG
   przekrojów Q19 przekraczały limit Safari; fix: renderer **canvas** dla warstw ląd/duch/lód/
   szelfy — testy próbkują piksele canvasu: w epokach zlodowaceń lód jest namalowany,
@@ -574,7 +594,7 @@ Automatyczne zestawy E2E (Chromium headless):
   3,3 mln vs dziś >0,45 — brak absurdu), legenda/tooltip/toggle/„O danych” + klatki
   `shots/bm_*.png` i atlas `shots/atlas_biomy_epoki.png` (27 epok),
 
-Ostatni wynik: **84/84 + 32/32 (mobilne, +M10) + 178/178 + 21/21 + 45/45 + 4/4 (perfcheck) zdanych** · audyty kształtu: lód 13 regionów × 6 epok (atlas `atlas_kontynenty_epoki.png`), **ląd 13 × 25 epok — 74/74 M0–M3, z naprawą danych szelfowych v2 (cv2, zagnieżdżenie 0→−125 m)** (atlas `atlas_lad_epoki.png`, `tools/landshots.js`) oraz **biomy: 15 regionów × 15 epok frakcji klas + walidacja HG-lite 68% grup @0 ka (`biome_report.json`)** (atlas `atlas_biomy_epoki.png`, `tools/biomeshots.js`) + migawki kontrolne epok: pliocen, Gauss 2,75 mln,
+Ostatni wynik: **99/99 + 37/37 (mobilne, +M10/M11) + 178/178 + 21/21 + 45/45 + 3–4/4 (perfcheck) zdanych** · audyty kształtu: lód 13 regionów × 6 epok (atlas `atlas_kontynenty_epoki.png`), **ląd 13 × 25 epok — 74/74 M0–M3, z naprawą danych szelfowych v2 (cv2, zagnieżdżenie 0→−125 m)** (atlas `atlas_lad_epoki.png`, `tools/landshots.js`) oraz **biomy: 15 regionów × 15 epok frakcji klas + walidacja HG-lite 68% grup @0 ka (`biome_report.json`)** (atlas `atlas_biomy_epoki.png`, `tools/biomeshots.js`) + migawki kontrolne epok: pliocen, Gauss 2,75 mln,
 LGM/Bølling–Allerød/mł. dryas/10,5 ka nad Ameryką Płn. (`tools/nadi.shots.js`),
 Azja: LGM vs mł. dryas nad Tajmyrem, MIS 6 nad Wierchojańskiem, Beringia przy LGM (`tools/asia.shots.js`),
 Ameryka Płd.: LGM scalony PIS, 15 ka rozpad na masywy, ACR 13 ka, „dziś” inwentarz 2011 AD, 35 ka w przekroju Q19 + globus (`tools/patice.shots.js`),
@@ -590,6 +610,61 @@ Matuyama, MIS 20/16/12/8/6, LGM, Bølling–Allerød, dziś — sprawdzone wzrok
 
 ## Changelog
 
+- **Sprint P0 (2026-11-10) — bramka v1.0 bez decyzji blokujących + dwie znalezione wady.**
+  Zrobione to, co audyty PM/PO wskazały jako „agent może od razu" (P0.2, P0.3, P0.5, P0.6, P1.5,
+  T1.1) i część P0.4 bez zależności licencyjnej; **P0.1/P0.7 (tag v1.0) czekają na D1/D2**.
+  - **Znajdowalność (P0.2):** `index.html` dostał meta description, theme-color, color-scheme,
+    pełny pakiet OG (title/description/image 1200×630/alt) + twitter:card, `manifest.webmanifest`
+    (ikony 192/512 „any" i „maskable"), apple-touch-icon 180. **`og:url`/`canonical` celowo
+    nieobecne** — nie deklarujemy adresu przed decyzją o hostingu (pilnuje tego test 10.3).
+    Nowy `tools/build_brand_assets.js` renderuje **obraz OG z samego atlasu** (LGM nad
+    Skandynawią + typografia) i ikony z `assets/icon.svg` — bez stocków i bez fontów emoji
+    (w środowisku bez fontu emoji ikona „🦣" wychodziła jako puste pole).
+  - **Mobile CSS (P0.3):** pola i selecty `16 px` na telefonie (koniec autozoomu iOS), nota
+    prywatności podkładów przeniesiona **do rozwiniętej kontrolki warstw** (wcześniej, doklejona
+    do kontenera, była widoczna także po zwinięciu i nachodziła na kartę fazy — wykryte przez
+    M2.2: dotknięcie karty trafiało w notę), karta fazy `right: 64 px` (nie wchodzi pod kontrolkę
+    warstw), zwinięta karta = sam pasek tytułu ≥44 px (BIIS/paleo dopiero po rozwinięciu),
+    nagłówek legendy 40 px, legenda 250 px.
+  - **A11y (P0.5 + P1.5):** globalny `:focus-visible` (koniec `outline: none` na `#srch-q`),
+    skip-link „Pomiń mapę → treść", `aria-current` w nawigacji, `aria-pressed` na przełącznikach
+    (paleo, animacja osi), `aria-expanded` (legenda, karta fazy), `aria-label` pól i kontrolek,
+    `role="button"` + Tab/Enter w wierszach legendy i wynikach wyszukiwania, `role="img"` na
+    globusie, `<noscript>` z opisem treści.
+  - **`prefers-reduced-motion` (P0.5):** wyłączony płynny zoom/fade Leafleta (także przy zmianie
+    preferencji w trakcie sesji) i „lot" → skok w `flyToPoint`; CSS wyłącza przejścia.
+    **Przy okazji złapano własny błąd:** `REDUCED_MOTION` był booleanem (`!!`), więc `.matches`
+    było zawsze `undefined` i mechanizm nigdy nie działał — teraz trzyma `MediaQueryList`
+    (kontrola: test 10.14).
+  - **RUNBOOK.md (P0.6):** jedna strona — podniesienie, wymagania (`PA_CHROME`/`PA_PUPPETEER`),
+    bateria, paczka offline, przebudowa danych + weryfikacja diffu, brand assets, checklist
+    wydania, deploy statyczny (CF/GH Pages, nagłówki), troubleshooting, mapa dokumentów.
+  - **`tools/requirements.txt` (T1.1)** z pinami + `tools/run_tests.sh` (jedna komenda, hermetyczna;
+    `PA_STRICT_PERF=1` czyni perf bramką).
+  - **BUG (znaleziony przy generowaniu obrazu OG, nie z audytu):** po wyłączeniu warstwy
+    „Kotwice pyłkowe" i wejściu w epokę z kotwicami każdy zoom kończył się
+    `TypeError: … reading '_animatingZoom'` — renderer `L.canvas` pyłka powstawał w grupie
+    odpiętej od mapy, a `refreshCanvasRenderers` wołał `_update()` bez sprawdzenia `_map`.
+    Naprawione strażnikiem; dodana **stała regresja 10.11** (odtwarza dokładnie ten stan).
+  - **BUG w testach (martwa asercja):** `1.9 biom kontynentu narysowany` liczyła „svg path"
+    w `biomePane`, a biomy to `L.imageOverlay` (PNG 720×360) — asercja była zawsze fałszywa
+    i nie mogła wykryć zepsutego rastra. Teraz sprawdza `<img>` + `naturalWidth`.
+  - **Hermetyczność baterii:** szum kafelków Esri/OSM/OTM (brak internetu w CI) nie czerwieni
+    już suit, ale dodano kontrolę **404 dla zasobów własnych** (`1.1b`, `M7.2b`) — czyli
+    „offline" nie ukryje zepsutego pliku danych.
+  - **Portability (T0.2, krok 1):** 22 suity i 13 builderów nie mają już zaszytych
+    `/home/user/paleoatlas` i `/home/user/biodata` — ścieżki liczą się z położenia pliku,
+    źródła przez `PA_BIODATA`/`PA_UPLOADS`, przeglądarka przez `PA_CHROME`/`PA_PUPPETEER`.
+    `tools/check_biomes.py` wymagał Pythona 3.12 (zagnieżdżone cudzysłowy w f-stringach) —
+    poprawione do 3.11.
+  - **Spójność treści:** z „O danych" zniknął nieaktualny wiersz „Biomy kontynentu — SCHEMAT
+    roboczy" (biomy są już warstwą modelową z 56 migawkami); wiersz „Podkład" mówi wprost,
+    że kafelki to jedyne zapytania zewnętrzne i tylko po wyjściu z trybu paleo.
+  - **Paczka offline** przebudowana (10,6 MB): inline ikony apple-touch, bez linku do manifestu
+    (na `file://` nie ma go skąd pobrać) — smoke-test: 0 żądań sieciowych, 0 błędów JS,
+    biomy z data-URI (720 px), lądolód 31% kadru w LGM, globus rysuje.
+  - **Bateria po zmianach: 99/99 + 37/37 + 178/178 + 21/21 + 45/45** (380 asercji; perfcheck
+    doradczo 3–4/4 — P.1 bywa 65–68% progu na software-canvas).
 - **Paczki do ręcznego przeniesienia projektu (GitHub w nowym czacie Areny).** W `/home/user/`:
   `PaleoAtlas_GITHUB.zip` (136 plików, **3,8 MB** — cały katalog `paleoatlas/` + nowy `.gitignore`)
   i `PaleoAtlas_TESTY.zip` (25 plików, **0,1 MB** — suity z `pptest/` bez regenerowalnych zrzutów

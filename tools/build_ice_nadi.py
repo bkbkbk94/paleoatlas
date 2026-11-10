@@ -13,9 +13,11 @@ Regeneracja wymaga pobrania:
 Shapefile jest w WGS84 (stopnie) — transformacja niepotrzebna.
 """
 import shapefile, json, os
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
 SRC = '/tmp/nadi/shp/NADI-1 shapefiles Dalton et al. QSR/'
-OUT = '/home/user/paleoatlas/js/data/ice_nadi.js'
+OUT = ROOT + '/js/data/ice_nadi.js'
 SIMPL_TOL = 0.04          # stopnie (~3-4 km na 60°N) — skala portalu
 MIN_AREA_KM2 = 8000       # mniejsze plamy pomijamy (jak w build_ice_dated)
 

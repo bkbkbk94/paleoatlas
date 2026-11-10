@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#241e15"/><stop offset="1" stop-color="#100d09"/>
+    </linearGradient>
+    <clipPath id="round"><circle cx="256" cy="256" r="248"/></clipPath>
+  </defs>
+  <circle cx="256" cy="256" r="250" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="246" fill="none" stroke="#d4a24a" stroke-width="8" opacity=".85"/>
+  <g clip-path="url(#round)">
+    <!-- nogi (za tułowiem, żeby wchodziły w sylwetkę bez szczelin) -->
+    <g fill="#cfc2a7">
+      <rect x="206" y="300" width="50" height="128" rx="22"/>
+      <rect x="264" y="308" width="50" height="120" rx="22"/>
+      <rect x="322" y="300" width="48" height="128" rx="22"/>
+      <rect x="372" y="308" width="44" height="120" rx="22"/>
+    </g>
+    <!-- tułów: garb + opadający zad -->
+    <path d="M150 352 C146 300 158 262 186 240 C214 218 250 208 282 212 C330 218 372 240 398 274 C420 304 428 334 424 366 L372 366 C374 332 356 302 322 286 C296 274 268 278 250 296 C232 314 224 340 222 366 Z" fill="#d9cdb4"/>
+    <ellipse cx="290" cy="320" rx="126" ry="62" fill="#d9cdb4"/>
+    <!-- głowa + czoło -->
+    <circle cx="184" cy="292" r="62" fill="#d9cdb4"/>
+    <ellipse cx="226" cy="240" rx="62" ry="42" fill="#d9cdb4"/>
+    <!-- trąba: gruby, zwężający się łuk -->
+    <path d="M146 292 C132 322 128 356 136 388 C140 404 152 410 160 402" stroke="#d9cdb4" stroke-width="34" fill="none" stroke-linecap="round"/>
+    <path d="M160 398 C166 392 165 382 158 379" stroke="#d9cdb4" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <!-- ciosy: dwa łuki do przodu i w górę -->
+    <path d="M186 330 C154 344 124 366 106 400" stroke="#f6edd6" stroke-width="17" fill="none" stroke-linecap="round"/>
+    <path d="M198 344 C172 356 150 374 136 396" stroke="#f6edd6" stroke-width="12" fill="none" stroke-linecap="round" opacity=".9"/>
+    <!-- oko, ucho, ogon -->
+    <circle cx="172" cy="276" r="8" fill="#12100d"/>
+    <path d="M214 254 C232 244 252 246 258 262 C262 276 250 286 234 288 Z" fill="#c9bca1"/>
+    <path d="M424 300 C440 306 450 320 448 334" stroke="#cfc2a7" stroke-width="15" stroke-linecap="round" fill="none"/>
+    <!-- podłoże = oś czasu -->
+    <path d="M96 456 H416" stroke="#d4a24a" stroke-width="7" stroke-linecap="round" opacity=".9"/>
+    <g fill="#d4a24a">
+      <circle cx="150" cy="456" r="10"/><circle cx="256" cy="456" r="10"/><circle cx="362" cy="456" r="10"/>
+    </g>
+  </g>
+</svg>

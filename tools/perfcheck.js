@@ -6,7 +6,7 @@
    c) raport czasów (software canvas w headless — użytkownik na GPU szybciej).
    Port 8279. Mirror: paleoatlas/tools/perfcheck.js
 ============================================================================ */
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -17,9 +17,9 @@ function check(id, cond, info) {
 }
 
 (async () => {
-  const server = spawn('python3', ['-m', 'http.server', '8279', '--bind', '127.0.0.1'], { cwd: '/home/user/paleoatlas' });
+  const server = spawn('python3', ['-m', 'http.server', '8279', '--bind', '127.0.0.1'], { cwd: require('path').resolve(__dirname, '..') });
   await sleep(1200);
-  const browser = await puppeteer.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const browser = await puppeteer.launch({ executablePath: process.env.PA_CHROME || '/usr/bin/chromium', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 860 });

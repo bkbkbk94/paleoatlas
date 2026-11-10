@@ -1,10 +1,10 @@
-const puppeteer = require('/tmp/pptr/node_modules/puppeteer-core');
+const puppeteer = require(process.env.PA_PUPPETEER || '/tmp/pptr/node_modules/puppeteer-core');
 const { spawn } = require('child_process');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
-  const server = spawn('python3', ['-m','http.server','8337','--bind','127.0.0.1'], {cwd:'/home/user/paleoatlas'});
+  const server = spawn('python3', ['-m','http.server','8337','--bind','127.0.0.1'], {cwd: require('path').resolve(__dirname, '..')});
   await sleep(1200);
-  const b = await puppeteer.launch({executablePath:'/usr/bin/chromium', headless:true, args:['--no-sandbox','--disable-dev-shm-usage']});
+  const b = await puppeteer.launch({executablePath: process.env.PA_CHROME || '/usr/bin/chromium', headless:true, args:['--no-sandbox','--disable-dev-shm-usage']});
   const p = await b.newPage();
   await p.setViewport({width:1500, height:980});
   await p.goto('http://127.0.0.1:8337/', {waitUntil:'networkidle2'}); await sleep(1600);

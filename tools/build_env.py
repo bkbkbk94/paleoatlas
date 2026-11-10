@@ -16,8 +16,10 @@ Poziom morza: krzywa eustatyczna portalu — punkty kotwiczne wg sprawdzonej lit
 (skala: uproszczenie; źródła poniżej), interpolacja liniowa w app.js.
 """
 import json, os
+from pathlib import Path
+ROOT = str(Path(__file__).resolve().parent.parent)
 
-OUT = '/home/user/paleoatlas/js/data/env.js'
+OUT = ROOT + '/js/data/env.js'
 
 # {bp_lat, ice|q, label} — ice: klucz PALEO.ice_sets; q: klucz window.ICE_QUAT
 TICKS = [

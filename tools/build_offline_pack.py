@@ -44,6 +44,18 @@ def inline_css(m):
 html, n_css = re.subn(r'<link rel="stylesheet" href="([^"]+)">', inline_css, html)
 assert n_css == 2, f'oczekiwano 2 arkuszy CSS, mam {n_css}'
 
+# ---------------------------------------------------------------- 1b. ikony / manifest
+# Plik offline jest JEDNYM plikiem otwieranym z dysku: manifest i zewnętrzne ikony
+# nie mają dokąd prowadzić (przeglądarka próbowałaby je pobrać i „pstrykać" siecią).
+# Dlatego: ikonę apple-touch wbudowujemy jako data-URI, a link do manifestu usuwamy.
+icon = b64(ROOT / 'assets/icon-180.png')
+html, n_icon = re.subn(r'<link rel="apple-touch-icon" href="assets/icon-180.png">',
+                       f'<link rel="apple-touch-icon" href="{icon}">', html)
+assert n_icon == 1, f'oczekiwano 1 ikony apple-touch, mam {n_icon}'
+html, n_man = re.subn(r'\n?<link rel="manifest"[^>]*>', '', html)
+assert n_man == 1, 'brak linku manifestu do usunięcia'
+html = html.replace('<link rel="image_src" href="assets/og-image.png">', '')
+
 # ---------------------------------------------------------------- 2. rastry biomów → BIOME_PNG
 pngs = sorted((ROOT / 'js/data/biome').glob('*.png'))
 assert len(pngs) == 56, f'oczekiwano 56 PNG, mam {len(pngs)}'
