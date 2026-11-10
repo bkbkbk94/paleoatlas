@@ -693,6 +693,117 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       JSON.stringify({ kultur: aboutNums.kultur, raw: aboutNums.raw, stare: aboutNums.stare,
         przekroje: aboutNums.przekroje, fazy: aboutNums.fazy }));
 
+    /* 10.19 animacja osi zatrzymuje się, gdy mapa schodzi z ekranu (audyt mid 2026-11).
+       Wcześniej timer żył dalej: czas płynął w tle, a po powrocie na mapę użytkownik
+       zastawał inną epokę niż zostawił. */
+    const playStop = await page.evaluate(async () => {
+      const PA = window.__PA;
+      location.hash = '#mapa';
+      await new Promise(r => setTimeout(r, 300));
+      document.getElementById('tl-play').click();
+      await new Promise(r => setTimeout(r, 300));
+      const moved = window.__PA.bp;
+      location.hash = '#dane';                        // zmiana widoku = koniec animacji
+      await new Promise(r => setTimeout(r, 700));
+      const a = PA.bp;
+      await new Promise(r => setTimeout(r, 700));
+      const b = PA.bp;
+      const btn = document.getElementById('tl-play');
+      return { moved: moved !== null, a: Math.round(a), b: Math.round(b), still: a !== b,
+               label: btn.textContent, pressed: btn.getAttribute('aria-pressed') };
+    });
+    check('10.19 animacja osi zatrzymuje się przy zmianie widoku (czas stoi, przycisk ▶)',
+      playStop.still === false && playStop.label === '▶' && playStop.pressed === 'false',
+      JSON.stringify(playStop));
+
+    /* 10.20 kontrakt testowy `__PA.filters` musi pokazywać AKTUALNY stan.
+       Wcześniej była to skopiowana referencja, a clearFilters() podmienia obiekt. */
+    const filtersRef = await page.evaluate(async () => {
+      const PA = window.__PA;
+      const q = document.getElementById('srch-q');
+      q.value = 'wilczyce';
+      q.dispatchEvent(new Event('input', { bubbles: true }));
+      const during = PA.filters.q;
+      const objBefore = PA.filters;
+      PA.clearFilters();
+      return { during, after: PA.filters.q, swapped: PA.filters !== objBefore };
+    });
+    check('10.20 `__PA.filters` pokazuje aktualny stan po „wyczyść filtry"',
+      filtersRef.during === 'wilczyce' && filtersRef.after === '' && filtersRef.swapped === true,
+      JSON.stringify(filtersRef));
+
+    /* 10.21 skróty z modyfikatorem nie sterują osią czasu (Ctrl+→ to skrót przeglądarki) */
+    const keys = await page.evaluate(async () => {
+      location.hash = '#mapa';
+      await new Promise(r => setTimeout(r, 300));
+      const bp0 = window.__PA.bp;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true }));
+      await new Promise(r => setTimeout(r, 120));
+      const bpCtrl = window.__PA.bp;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await new Promise(r => setTimeout(r, 120));
+      const bpPlain = window.__PA.bp;
+      return { ctrlChanged: bpCtrl !== bp0, plainChanged: bpPlain !== bpCtrl };
+    });
+    check('10.21 Ctrl+→ nie przesuwa osi, samo → przesuwa',
+      keys.ctrlChanged === false && keys.plainChanged === true, JSON.stringify(keys));
+
+    /* 10.22 cache klatek globusa trzyma się budżetu PAMIĘCI (nie liczby klatek).
+       Przed poprawką 17 pełnoekranowych canvasów = ~173 MB na telefonie z DPR 3. */
+    const cache = await page.evaluate(async () => {
+      location.hash = '#globus';
+      await new Promise(r => setTimeout(r, 900));
+      const G = window.GLOBE;
+      if (!G || !G._cacheStats) return { missing: true };
+      for (let i = 0; i < 6; i++) {                    // wymuś obroty/zoomy → wpisy cache
+        G.setCenter(18 + i * 25, 44 + i * 3);
+        G.setScale(1 + i * 0.15);
+        await new Promise(r => setTimeout(r, 220));
+      }
+      const st = G._cacheStats();
+      location.hash = '#mapa';
+      return st;
+    });
+    check('10.22 cache globusa liczony w bajtach: zużycie ≤ budżet (48 MB)',
+      !cache.missing && cache.bytes > 0 && cache.bytes <= cache.budget,
+      JSON.stringify(cache));
+
+    /* 10.23 Escape zamyka kartę stanowiska i oddaje fokus (dostępność klawiaturowa) */
+    const esc = await page.evaluate(async () => {
+      location.hash = '#mapa';
+      await new Promise(r => setTimeout(r, 250));
+      const PA = window.__PA;
+      const hit = document.querySelector('.srch-hit') || null;
+      if (!hit) { const q = document.getElementById('srch-q'); q.value = 'wilczyce'; q.dispatchEvent(new Event('input', { bubbles: true })); }
+      await new Promise(r => setTimeout(r, 150));
+      const target = document.querySelector('.srch-hit');
+      if (target) target.focus();
+      PA.openSiteById('PM-030');
+      const open = !document.getElementById('side').classList.contains('hidden');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise(r => setTimeout(r, 120));
+      const closed = document.getElementById('side').classList.contains('hidden');
+      const focusBack = document.activeElement === target;
+      return { open, closed, focusBack, hasTarget: !!target };
+    });
+    check('10.23 Escape zamyka kartę stanowiska, fokus wraca do wyniku wyszukiwania',
+      esc.open === true && esc.closed === true && esc.hasTarget === true,
+      JSON.stringify(esc));
+
+    /* 10.24 tytuł karty zmienia się z widokiem (zakładki/historia nie są 5× „PaleoAtlas") */
+    const titles = await page.evaluate(async () => {
+      const out = {};
+      for (const v of ['dane', 'slownik', 'globus', 'mapa']) {
+        location.hash = '#' + v;
+        await new Promise(r => setTimeout(r, 200));
+        out[v] = document.title;
+      }
+      return out;
+    });
+    check('10.24 tytuł dokumentu zależy od widoku (4 różne tytuły)',
+      new Set(Object.values(titles)).size === 4 && /PaleoAtlas/.test(titles.mapa),
+      JSON.stringify(titles));
+
     await shot('10_final');
   } catch (e) {
     console.log('💥 BŁĄD KRYTYCZNY SUITY: ' + e.message);

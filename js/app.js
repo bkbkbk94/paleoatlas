@@ -543,8 +543,14 @@ function biomePal2id() {
 }
 function loadBiomeRaster(e) {
   if (BIOME.cache[e.file] || BIOME.failed[e.file]) { renderBiomeLegend(); return; }
+  /* In-flight: zanim onload ustawi cache, kolejne wywołania (np. globus + mapa w tej samej
+     klatce) tworzyły DRUGI Image i drugi raz dekodowały 259 200 pikseli. */
+  if (!BIOME.loading) BIOME.loading = {};
+  if (BIOME.loading[e.file]) return;
+  BIOME.loading[e.file] = true;
   const img = new Image();
   img.onload = () => {
+    BIOME.loading[e.file] = false;
     try {
       const cv = document.createElement('canvas');
       cv.width = 720; cv.height = 360;
@@ -571,7 +577,7 @@ function loadBiomeRaster(e) {
     renderBiomeLegend();
     if (window.GLOBE && window.GLOBE.markDirty) window.GLOBE.markDirty();   // globus: odśwież po doczytaniu PNG
   };
-  img.onerror = () => { BIOME.failed[e.file] = true; };
+  img.onerror = () => { BIOME.loading[e.file] = false; BIOME.failed[e.file] = true; };
   img.src = 'js/data/biome/' + e.file;
 }
 function biomeClassAt(ll) {
@@ -845,15 +851,20 @@ function renderTimeLayers() {
   SITES.rdzen.forEach(s => { if (!isDupe(s) && isVisible(s, bp) && matchesFilters(s)) vis.rdzen.push(s); });
   SITES.sasiedzi.forEach(s => { if (isVisible(s, bp) && matchesFilters(s)) vis.sasiedzi.push(s); });
 
+  /* Odporność renderu: wyjątek przy jednym rekordzie (np. brak współrzędnych po błędzie
+     pipeline'u) nie może zostawić mapy w połowie narysowanej i „zamarznąć" legendy.
+     Zliczamy takie przypadki i mówimy o nich RAZ w konsoli. */
+  const badSites = [];
+  const eachSafe = (arr, fn) => arr.forEach(s => { try { fn(s); } catch (err) { badSites.push(s.id || '?'); } });
   group.rdzen.clearLayers(); group.sasiedzi.clearLayers();
-  vis.sasiedzi.forEach(s => {
+  eachSafe(vis.sasiedzi, s => {
     group.sasiedzi.addLayer(L.circleMarker([s.lat, s.lon], {
       pane: 'nbrPane', radius: 5.5, color: cultOf(s.kultura).kolor, weight: 2,
       fillColor: '#14100a', fillOpacity: .15
     }).on('click', () => openSite(s))
       .bindTooltip(tipText(s)));
   });
-  vis.rdzen.forEach(s => {
+  eachSafe(vis.rdzen, s => {
     const jask = s.typ === 'jaskinia_schronisko';
     group.rdzen.addLayer(L.circleMarker([s.lat, s.lon], {
       pane: 'sitesPane', radius: ROLA_SZ(s), color: '#fff', weight: jask ? 1.6 : 2,
@@ -863,6 +874,10 @@ function renderTimeLayers() {
     }).on('click', () => openSite(s))
       .bindTooltip(tipText(s)));
   });
+  if (badSites.length && !BIOME.badSitesWarned) {
+    BIOME.badSitesWarned = true;
+    console.warn('PaleoAtlas: pominięto rekordy bez poprawnych danych: ' + badSites.join(', '));
+  }
 
   /* obszary kultur — tymczasowo WYŁĄCZONE (patrz HULLS_ON wyżej) */
   group.hulls.clearLayers();
@@ -1057,8 +1072,24 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+let cardReturnFocus = null;
+/* Escape zamyka kartę i oddaje fokus elementowi, z którego ją otwarto (punkt na mapie,
+   wynik wyszukiwania). Wcześniej kartę dało się zamknąć tylko myszką — użytkownik
+   klawiatury zostawał z otwartym panelem i fokusem w środku. */
+function closeSiteCard() {
+  const side = document.getElementById('side');
+  if (side.classList.contains('hidden')) return;
+  side.classList.add('hidden');
+  const back = cardReturnFocus;
+  cardReturnFocus = null;
+  if (back && document.contains(back) && typeof back.focus === 'function') back.focus({ preventScroll: true });
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSiteCard(); });
+
 function openSite(s) {
   const side = document.getElementById('side');
+  const prev = document.activeElement;
+  if (prev && prev !== document.body && document.contains(prev)) cardReturnFocus = prev;
   side.classList.remove('hidden');
   const k = cultOf(s.kultura);
   const stCls = s.status === 'POTWIERDZONE' ? 'ok' : (s.status === 'CZESCIOWO' ? 'warn' : 'err');
@@ -1112,7 +1143,7 @@ function openSite(s) {
     };
   });
 }
-document.getElementById('side-close').onclick = () => document.getElementById('side').classList.add('hidden');
+document.getElementById('side-close').onclick = closeSiteCard;
 
 /* ------------------------------------------------- oś czasu */
 const slider = document.getElementById('tl-slider');
@@ -1160,6 +1191,19 @@ slider.addEventListener('change', () => {
 });
 
 let playTimer = null;
+/* Jedno miejsce zatrzymujące animację: wywoływane z przycisku, przy zmianie widoku
+   i przy ukryciu karty. Wcześniej timer żył dalej po wejściu w „O danych" — czas
+   płynął niewidocznie, a po powrocie na mapę użytkownik zastawał inną epokę. */
+function stopAxisPlay() {
+  if (!playTimer) return;
+  clearInterval(playTimer);
+  playTimer = null;
+  const btn = document.getElementById('tl-play');
+  btn.textContent = '▶';
+  btn.setAttribute('aria-pressed', 'false');
+  btn.setAttribute('aria-label', 'Odtwórz animację osi czasu');
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopAxisPlay(); });
 document.getElementById('tl-play').onclick = () => {
   const btn = document.getElementById('tl-play');
   const setPlayUI = playing => {
@@ -1179,6 +1223,9 @@ document.getElementById('tl-play').onclick = () => {
 document.addEventListener('keydown', e => {
   if (!document.getElementById('view-mapa').classList.contains('active')) return;
   if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  /* Ctrl/Alt/Meta + strzałka to skrót przeglądarki lub systemu (przełączanie kart,
+     nawigacja po słowach) — nie nasza oś czasu. Bez tego warunku Ctrl+→ przesuwał epokę. */
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'ArrowRight') setSlider(+slider.value + 5);
   if (e.key === 'ArrowLeft') setSlider(+slider.value - 5);
 });
@@ -1192,14 +1239,27 @@ document.getElementById('legend-head').onclick = () => {
 };
 
 /* =========================================================================== ROUTING / WIDOKI */
+let invRaf = 0;
+/* Tytuł karty per widok: wcześniej wszystkie 5 widoków miało jeden tytuł, więc historia
+   przeglądarki i zakładki wyglądały identycznie („PaleoAtlas" ×5). */
+const VIEW_TITLES = {
+  mapa: 'PaleoAtlas — paleolit i mezolit w czasie i przestrzeni',
+  tom1: 'Tom I — PaleoAtlas', slownik: 'Słownik — PaleoAtlas',
+  globus: 'Globus — PaleoAtlas', dane: 'O danych i źródłach — PaleoAtlas'
+};
 function show(view) {
+  if (VIEW_TITLES[view]) document.title = VIEW_TITLES[view];
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
   document.querySelectorAll('#top nav a').forEach(a => {
     const on = a.dataset.view === view;
     a.classList.toggle('active', on);
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  if (view === 'mapa') setTimeout(() => map.invalidateSize(), 50);
+  /* rAF zamiast setTimeout(50): przy szybkim przełączaniu widoków nie kolejkują się
+     opóźnione wywołania, a rozmiar liczymy po rzeczywistym układzie (jedna klatka). */
+  if (invRaf) { cancelAnimationFrame(invRaf); invRaf = 0; }
+  if (view === 'mapa') invRaf = requestAnimationFrame(() => { invRaf = 0; map.invalidateSize(); });
+  else stopAxisPlay();
   if (window.GLOBE) (view === 'globus' ? window.GLOBE.activate() : window.GLOBE.deactivate());
 }
 function route() {
@@ -1308,6 +1368,14 @@ document.getElementById('about-content').innerHTML = `
 oraz <b>${SITES.sasiedzi.length} stanowisk-sąsiadów</b> z ${new Set(SITES.sasiedzi.map(s => s.kraj)).size} krajów, dających kontekst porównawczy.
 Trzy rekordy oznaczone w bazie jako duplikaty (PM-094→PM-030, PM-099→PM-142, PM-128→PM-127) są dostępne w kartach,
 ale nie rysują się na mapie i nie liczą w statystykach.</p>
+
+<h3 class="about-h">Licencja i cytowanie</h3>
+<p><b>Kod</b> — licencja <b>MIT</b>. <b>Treści i dane portalu</b> — <b>CC BY 4.0</b>
+(© 2026 Malwowy): można z nich korzystać, uczyć na nich i cytować je, podając autora
+i źródło. Warstwy pochodzące z publikacji zewnętrznych zachowują licencje swoich źródeł —
+pełne zestawienie w pliku <code>LICENCJE.md</code> w repozytorium.</p>
+<p class="dim">Cytowanie: Malwowy (2026), <i>PaleoAtlas — interaktywny atlas stanowisk
+paleolitu i mezolitu</i> (wersja 1.0), CC BY 4.0.</p>
 
 <h3 class="about-h">Oś czasu</h3>
 <p>Oś jest <b>nieliniowa</b>: każda z <b>${FAZY.length} faz</b> — ${FAZY_KLIMAT} faz klimatycznych (z pliku <code>zlodowacenia_biomy.csv</code>) oraz
@@ -1437,7 +1505,11 @@ window.__PA = {
     mmIsNative: /\[native code\]/.test(String(window.matchMedia))
   }),
   RENDER_CANVAS, refreshCanvasRenderers, ghostCoast,
-  get bp() { return state.bp; }, filters: state.filters,
+  get bp() { return state.bp; },
+  /* MUSI być getterem: clearFilters() PODMIENIA obiekt stanu, więc skopiowana referencja
+     (`filters: state.filters`) pokazywała stan z chwili startu — po „wyczyść filtry"
+     test/embedder czytał stare zapytanie. */
+  get filters() { return state.filters; },
   openSiteById: id => {
     const s = SITES.rdzen.find(x => x.id === id) || SITES.sasiedzi.find(x => x.id === id);
     if (s) openSite(s);

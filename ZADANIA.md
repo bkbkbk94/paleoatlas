@@ -146,6 +146,37 @@ klasyczne mapy Scotese (niestandardowa licencja non-commercial), wszystko co bez
 | N5 | CSS: 12 × `!important` + powtórzone bloki w media queries | 0,2 dnia | ⬜ kosmetyka |
 | N6 | Koalescencja suwaka w rAF — **nie robić** (po J1 krok 1–5 ms; psułaby testy) | — | 🚫 |
 
+## AUDYT MID 2026-11-10 (raport: `AUDYT_MID.md`)
+
+| # | Zadanie | Status |
+|---|---|---|
+| M1 | Animacja osi zatrzymuje się przy zmianie widoku / ukryciu karty (`stopAxisPlay`) | ✅ (10.19) |
+| M2 | `__PA.filters` jako getter (martwa referencja po `clearFilters`) | ✅ (10.20) |
+| M3 | Skróty z Ctrl/Alt/Meta nie sterują osią czasu | ✅ (10.21) |
+| M4 | Cache globusa: budżet **48 MB** zamiast 17 klatek (było ~79/173 MB) | ✅ (10.22) |
+| M5 | Raster biomów: blokada „pobieram" (koniec podwójnego dekodowania) | ✅ |
+| M6 | Karta stanowiska: Escape + powrót fokusu | ✅ (10.23) |
+| M7 | `eachSafe`: jeden wadliwy rekord nie przerywa renderu mapy | ✅ |
+| M8 | Guard kontekstu 2D globusa | ✅ |
+| M9 | `rAF` zamiast `setTimeout(50)` przy zmianie widoku | ✅ |
+| M10 | Tytuł dokumentu per widok | ✅ (10.24) |
+| S1 | `route()` wołane 2× na klik — **nie zmieniać** (0 przerysowań; usunięcie psuje klik w ten sam widok) | 🚫 |
+| S2 | `biomeEpochForBP` ×5 na render — mikro (0,05 ms) | ⬜ |
+| S3 | Globus czyta `__PA.bp` co klatkę — szyna zdarzeń razem z N3 | ⬜ z N3 |
+| S4 | Deep-link do stanowiska (`#stanowisko-PM-030`) — funkcja produktowa | ⬜ decyzja przy publikacji |
+| S5 | Własny mini-markdown (`md()`) — zostaje | 🚫 |
+| S6 | `SITES.find()` po ID — zostaje (0,01 ms) | 🚫 |
+
+## Licencja (D2 — ROZSTRZYGNIĘTE 2026-11-10)
+
+| # | Zadanie | Status |
+|---|---|---|
+| L1 | `LICENSE` (MIT, © 2026 Malwowy) | ✅ |
+| L2 | `LICENSE-TRESCI.md` (CC BY 4.0) | ✅ |
+| L3 | `LICENCJE.md` — tabela źródeł zewnętrznych + sposób cytowania | ✅ |
+| L4 | Sekcja „Licencja i cytowanie" w „O danych" | ✅ |
+| L5 | **Potwierdzić 6 licencji oznaczonych ⚠** (DATED-1, NADI-1, ICE-6G_C, Batchelor/OSF, Beyer/Krapp figshare, BIOME 6000) | ⬜ **przed v1.0** |
+
 ## 🔒 Zamrożone (dyscyplina non-profit — nie robimy)
 
 Konta użytkowników · paywall warstw · reklamy · analityka behawioralna/cookies · nudge'y „engagement" ·

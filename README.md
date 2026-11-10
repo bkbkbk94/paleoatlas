@@ -209,7 +209,7 @@ wg linii portalu** — tooltip i karta fazy jawnie sygnalizują tę rozbieżnoś
 | Poziom morza | **krzywa eustatyczna portalu** (uproszczona, 102 pkt): Waelbroeck 2002; Spratt & Lisiecki 2016; pliocen: Miller 2020/PRISM (do +20 m) |
 | Dawne lądy / wyschnięty szelf | **ETOPO2v2 (NOAA)** batymetria + próg z globalnej krzywej (−5…−125 m); baseny zamknięte (Czarne, Kaspijskie) i jeziora przedpolowe: przybliżenie 1. rzędu |
 | Kontury kontynentów / „duch” wybrzeża | Natural Earth 50m (domena publiczna) |
-| Biomy kontynentu | **SCHEMAT roboczy** — uproszczone tło |
+| Biomy kontynentu | **MODELE naukowe** (Beyer 2020 / Krapp 2021 / PALEO-PGEM + HG-lite) — 56 migawek + kotwice BIOME 6000; szczegóły w „O danych” |
 | Obszary kultur | **tymczasowo wyłączone** (na prośbę użytkownika) — wrócą w przemyślanej formie |
 
 ## Lądolody per okres — decyzje interpretacyjne faz portalu
@@ -608,8 +608,49 @@ Islandia: LGM — schemat pełnej pokrywy, 15 ka / 12 ka / 10,5 ka — etapy cof
 globus: Beringia w centrum + Europa przy LGM — wzrokowo, `tools/globe.suite.js`),
 Matuyama, MIS 20/16/12/8/6, LGM, Bølling–Allerød, dziś — sprawdzone wzrokowo).
 
+## Licencja
+
+- **Kod** (HTML/CSS/JS, `tools/*`) — **MIT** — plik `LICENSE`.
+- **Treści, dane portalu i ilustracje** — **CC BY 4.0** — plik `LICENSE-TRESCI.md`.
+  Warunek: podać autora i źródło („Malwowy, 2026, PaleoAtlas, CC BY 4.0”).
+- **Dane z publikacji zewnętrznych** (DATED-1, NADI-1, PATICE, BRITICE-CHRONO, ICE-6G_C,
+  RGI 7.0, GLACIMONTIS, BIOME 6000, Batchelor 2019, PALEO-PGEM, ETOPO2v2, Natural Earth)
+  zachowują licencje swoich źródeł — zestawienie, oznaczenia i sposób cytowania:
+  **`LICENCJE.md`** (6 pozycji oznaczonych ⚠ wymaga potwierdzenia przed publikacją).
+
 ## Changelog
 
+- **Licencja (2026-11-10, decyzja D2): kod MIT, treści CC BY 4.0 — © 2026 Malwowy.**
+  Dodane `LICENSE`, `LICENSE-TRESCI.md` i **`LICENCJE.md`** — zestawienie licencji źródeł
+  zewnętrznych (DATED-1, NADI-1, PATICE, BRITICE-CHRONO, ICE-6G_C, RGI 7.0, GLACIMONTIS,
+  BIOME 6000, Batchelor 2019, PALEO-PGEM, ETOPO2v2, Natural Earth) z wymaganym sposobem
+  oznaczenia przy publikacji. Sześć pozycji oznaczono ⚠ (licencja nie podana w repo —
+  **do potwierdzenia na stronach zbiorów przed v1.0**). Sekcja „Licencja i cytowanie"
+  w widoku „O danych". Przy okazji: README wciąż opisywało biomy jako „SCHEMAT roboczy" —
+  poprawione (to już warstwa modelowa, 56 migawek).
+- **Audyt „błędów średniego poziomu" (2026-11-10) — 10 napraw, 6 nowych testów.**
+  Raport: **`AUDYT_MID.md`**. Wszystko potwierdzone w działającej aplikacji, nie „z czytania":
+  - **Animacja osi grała dalej po wyjściu z mapy.** ▶ → „O danych": w 1,4 s czas przeskoczył
+    o 4 tys. lat, przycisk wciąż ⏸, a po powrocie użytkownik zastawał inną epokę. Teraz jedno
+    `stopAxisPlay()` wołane z przycisku, ze zmiany widoku i z `visibilitychange` (test 10.19).
+  - **`window.__PA.filters` był martwą referencją** — po „wyczyść filtry" nadal pokazywał
+    `wilczyce`. `clearFilters()` podmienia obiekt stanu, więc kopia referencji kłamała.
+    Teraz getter (test 10.20).
+  - **Ctrl+→ przesuwało epokę** (95 → 93 tys. lat) — globalny skrót nie sprawdzał modyfikatorów
+    (test 10.21).
+  - **Cache klatek globusa ograniczony liczbą, nie pamięcią:** 17 pełnoekranowych canvasów to
+    **~79 MB na desktopie i ~173 MB na telefonie** (DPR 3). Teraz budżet **48 MB** dzielony
+    między dwa cache, liczba wpisów wyliczana z rozmiaru klatki; `GLOBE._cacheStats()` podaje
+    zużycie (test 10.22: 40 MB ≤ 48 MB).
+  - **Karta stanowiska bez wyjścia z klawiatury:** Escape zamyka i **oddaje fokus** tam, gdzie
+    był (test 10.23).
+  - Mniejsze: raster biomów pobierany raz (blokada in-flight), jeden wadliwy rekord nie przerywa
+    rysowania mapy (`eachSafe` + jedno ostrzeżenie), guard kontekstu 2D globusa, `rAF` zamiast
+    `setTimeout(50)` przy zmianie widoku, **tytuł karty per widok** (test 10.24).
+  - Świadomie **nie** zmienione (zmierzone jako nieproblematyczne): podwójne `route()`
+    (0 przerysowań), `biomeEpochForBP` ×5 (0,05 ms), sprzężenie globusa przez `__PA.bp`
+    (do N3), brak deep-linku do stanowiska (funkcja, nie błąd).
+  - **Bateria: 109/109 + 37/37 + 178/178 + 21/21 + 45/45 = 390 asercji.**
 - **Audyt „błędów juniora" (2026-11-10) — 12 napraw, 4 nowe testy, ~3× szybsza oś czasu.**
   Pełny raport: **`AUDYT_JUNIOR.md`** (z liczbami i metodą). Najważniejsze:
   - **Wydajność osi czasu (największa znaleziona wada).** Legenda biomów nasłuchiwała
@@ -701,6 +742,9 @@ Matuyama, MIS 20/16/12/8/6, LGM, Bølling–Allerød, dziś — sprawdzone wzrok
   `shots/`). Oba zweryfikowane (`testzip` OK). Pozostały niezależnie: `PaleoAtlas_OFFLINE.html`
   (10,5 MB, odtwarzalny: `python3 tools/build_offline_pack.py`) oraz surowce `/home/user/biodata/`
   (odtwarzalne: `tools/fetch_biodata.sh`) — do repo dziennego nie wchodzą.
+- **`AUDYT_MID.md`** — audyt „błędów średniego poziomu": cykle życia widoków, timery, stan
+  współdzielony, kontrakty API, pamięć (cache globusa w bajtach), obsługa błędów, dostępność
+  klawiaturowa. 10 napraw, 6 testów, 6 świadomie odłożonych obserwacji (S1–S6).
 - **`AUDYT_JUNIOR.md`** — audyt „błędów juniora" z **pomiarami** (profil CPU, mutacje DOM, czasy kroku
   osi na desktopie i telefonie): 12 napraw (wydajność, odporność startu, escapowanie, spójność liczb),
   6 świadomie odłożonych optymalizacji (N1–N6) i lista rzeczy sprawdzonych jako czyste.

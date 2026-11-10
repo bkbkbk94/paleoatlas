@@ -87,7 +87,21 @@
     return { cv: cv2, ctx: cx2 };
   }
   function pxGet(map, key) { const v = map.get(key); if (v) { map.delete(key); map.set(key, v); } return v || null; }
-  function pxSet(map, key, v, max) { map.set(key, v); while (map.size > max) map.delete(map.keys().next().value); }
+  /* Budżet pamięci cache klatek. Wcześniej limit był LICZBĄ wpisów (7 + 10 = 17), a jeden
+     wpis to pełnoekranowy canvas: desktop ~4,7 MB, telefon (DPR 3) ~10,2 MB → razem
+     odpowiednio ~79 MB i ~173 MB. Safari na telefonie potrafi przy tym zabić kartę.
+     Teraz liczba wpisów wynika z budżetu 48 MB (min. 2, maks. dotychczasowy limit). */
+  const PX_BUDGET = 48 * 1024 * 1024;          // łączny budżet obu cache'ów (BASE + ICE)
+  const PX_BUDGET_PER_MAP = PX_BUDGET / 2;     // …dzielony po połowie, bo mapy są dwie
+  function pxMax(ly, cap) {
+    const bytes = Math.max(1, ly.cv.width * ly.cv.height * 4);
+    /* min. 2 wpisy: bez tego na bardzo dużym viewportcie cache przestaje cokolwiek dawać.
+       W takim skrajnym przypadku budżet może zostać przekroczony — świadomie, na rzecz
+       płynności; dla typowych ekranów limit trzyma się z zapasem. */
+    return Math.max(2, Math.min(cap, Math.floor(PX_BUDGET_PER_MAP / bytes)));
+  }
+  function pxSet(map, key, v, cap) { map.set(key, v); const max = pxMax(v, cap); while (map.size > max) map.delete(map.keys().next().value); }
+  function pxBytes(map) { let b = 0; map.forEach(ly => { b += ly.cv.width * ly.cv.height * 4; }); return b; }
   function blit(ly) {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(ly.cv, 0, 0); ctx.restore();
   }
@@ -545,7 +559,10 @@
     wrap = document.getElementById('globe-wrap');
     cv = document.getElementById('globe-cv');
     hudEpoch = document.getElementById('globe-epoch');
+    /* Bez 2D contextu (stary silnik, wyczerpana pamięć, canvas zablokowany) globus musi
+       się po prostu nie włączyć — a nie wywracać inicjalizację całego portalu. */
     ctx = cv.getContext('2d');
+    if (!ctx) { inited = false; console.warn('PaleoAtlas: globus niedostępny (brak kontekstu 2D)'); return; }
     cv.addEventListener('pointerdown', onDown);
     cv.addEventListener('pointermove', onMove);
     cv.addEventListener('pointerup', onUp);
@@ -577,6 +594,10 @@
     setPollen(b) { pollenOn = !!b; const t = document.getElementById('gt-pollen'); if (t) t.classList.toggle('on', pollenOn); dirty = true; },
     getBiome() { return { biome: biomeOn, pollen: pollenOn }; },
     _dbg: DBG,
+    _cacheStats() {
+      return { base: BASE_PIX.size, ice: ICE_PIX.size, max: BASE_PIX.size + ICE_PIX.size,
+               bytes: pxBytes(BASE_PIX) + pxBytes(ICE_PIX), budget: PX_BUDGET };
+    },
     _classProbe(step) {                                // dla testów: piksele canvasu → najbliższa klasa palety BIOME4
       const meta = window.BIOME_META; if (!meta) return null;
       const pal = paletteRgb();

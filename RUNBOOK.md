@@ -128,6 +128,7 @@ Portal to pliki — wystarczy wrzucić katalog repo (bez `uploads/`, `biodata/`,
 | `AUDYT_PM.md` | strategia, persony, bramka v1.0, RICE, ryzyka |
 | `AUDYT_PRODUKTOWY.md` | ocena wartości (9 wymiarów) |
 | `AUDYT_DEV.md` | dług techniczny, proces, CI |
+| `AUDYT_MID.md` | cykle życia widoków, timery, stan współdzielony, pamięć cache, kontrakty API |
 | `AUDYT_JUNIOR.md` | wydajność i odporność: zmierzone wąskie gardła, co naprawione, co świadomie odłożone (N1–N6) |
 | `AUDYT_KONKURENCJA_KOSZTY.md` | rynek, licencje, koszty |
 | `RAPORT_ZESPOLU_2026-11-10.md` | przegląd zespołu ekspertów + sprint P0 (stan po nim) |
